@@ -395,7 +395,7 @@ class Shadow:
         ----------
           --> dates [list[dt.datetime]]: List of the dates when shadows must be casted (use dt.datetime(..., tzinfo=dt.timezone.utc)).
           --> contours [int] (optional): If 0, for each day, add every shadowed pixels to the shadow map. If > 0, for each day, add only the pixels around 
-            the shadow contours ({contours}-wide buffer) to the shadow map.
+            the shadow contours ({contours}-wide buffer) to the shadow map, in m.
           --> preprocess [bool] (optional): Preprocess the casted shadow (see cast_shadow() method)
           --> parallelize [int | bool] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
             If False, sequential computation is applied. Default is False.     

@@ -10,10 +10,10 @@ from shadow import Shadow
 warnings.filterwarnings('ignore')
 
 # Paths and file names
-repo = "/home/charriel/Documents/Scripts_dossier/shadow/" # Main repository
+repo = "/home/charriel/Documents/Seasonality/shadow_map/" # Main repository
 file_dem = repo + "20241002_MdG_MtBlanc_DEM_coreg.tif" # Main DEM
 file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
-file_rgi = "/home/charriel/Documents/Scripts_dossier/shadow/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
+file_rgi = "/home/charriel/Documents/Seasonality/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
 file_rough_dem = "/home/charriel/Documents/Form@ter/Metadata/DEM/30m/output_COP30.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 
 # Boundary parameters
@@ -60,8 +60,8 @@ plt.show()
 
 print(f"Overall processing took {round(time.time() - start_time, 2)} s")
 
-shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=8, preprocess=filter_small_shadows)
+shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=160, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
-shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadow borders",savefig=f'{repo}/shadow_map.png')
+shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadow borders",savefig=f'{repo}/shadow_borders_map.png')
 
 plt.show()

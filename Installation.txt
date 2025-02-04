@@ -1,0 +1,3 @@
+mamba create --name horayzon_core_310 python=3.10 -c conda-forge embree3 tbb-devel cython numpy scipy geographiclib tqdm requests xarray netcdf4 matplotlib pillow skyfield pyproj ipython
+
+micromamba create --name horayzon_core_310 python=3.10 -c conda-forge embree3 tbb-devel cython numpy scipy geographiclib tqdm requests xarray netcdf4 matplotlib pillow skyfield pyproj ipython

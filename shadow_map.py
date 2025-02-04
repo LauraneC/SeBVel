@@ -28,13 +28,13 @@ filter_small_shadows = False # Remove shadows with less than SMALL_SHADOW_LIMIT 
 global_settings = {"SMALL_SHADOW_LIMIT": 500} # Global settings (only SMALL_SHADOW_LIMIT is used here)
 
 # Acquisition date (/!\ might be different from data submission date)
-year = 2018
+year = 2024
 hour = "10:30" # Same hour each day
 
 start_time = time.time()
 
 # Example 1 - Casting a shadow
-date = dt.datetime(2018, 10, 25, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
 # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
 # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
 shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,

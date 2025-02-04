@@ -182,7 +182,7 @@ class Shadow:
             if self.verbose: print("Inner domain size in DEM : " + str(self.elevation_pad[slice_in].shape))
 
             # Replace
-            if mask is not None:
+            if rough_dem is not None:
                 if isinstance(rough_dem, int) or isinstance(rough_dem, float): # Degrade the precise DEM to get a coarser 
                     #TODO directly compute a coarser DEM from the {file_dem} DEM
                     # Difficulties : manage missing data (interpolation ?), manage the padding
@@ -194,7 +194,7 @@ class Shadow:
                     rough_dem[(rough_dem < 0) | np.isnan(rough_dem)] = 0
                     rough_dem = resize(rough_dem, self.elevation_pad.shape)
 
-                self.elevation_pad = np.where(mask & (rough_dem > 0), rough_dem, self.elevation_pad)
+                self.elevation_pad = np.where(mask & (rough_dem > 0), rough_dem, self.elevation_pad) #replace the elevation pad values by the rough dem ones, in the mask area
 
     def load_ortho(self, 
                    file_ortho: str) -> None:

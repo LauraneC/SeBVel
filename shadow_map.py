@@ -38,7 +38,7 @@ date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the dat
 # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
 # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
 shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
-                file_rgi=file_rgi, rough_dem=file_rough_dem)
+                file_rgi=file_rgi, rough_dem=None)
 # shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
 # shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
 # plt.show()

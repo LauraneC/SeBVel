@@ -26,6 +26,7 @@ ellps = "WGS84"  # Earth's surface approximation (sphere, GRS80 or WGS84)
 # Settings
 filter_small_shadows = False # Remove shadows with less than SMALL_SHADOW_LIMIT pixels (in global_settings)
 global_settings = {"SMALL_SHADOW_LIMIT": 500} # Global settings (only SMALL_SHADOW_LIMIT is used here)
+nb_cpus = 8
 
 # Acquisition date (/!\ might be different from data submission date)
 year = 2024
@@ -51,7 +52,7 @@ dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]
 # Compute shadow map on those dates
 # parallelize allows parallelization, contours=0 implies that we compute for each pixel the number of days when it is shadowed (put contours={int}
 # to compute the it around the contours only)
-shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=0, preprocess=filter_small_shadows)
+shadow_map = shadow.nday_shadow_map(dates, parallelize=nb_cpus, contours=0, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
 
 # Plot the shadow map

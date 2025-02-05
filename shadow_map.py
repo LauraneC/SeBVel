@@ -35,11 +35,11 @@ hour = "10:30" # Same hour each day
 start_time = time.time()
 
 # Example 1 - Casting a shadow
-date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
-# Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
-# limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
-shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
-                file_rgi=file_rgi, rough_dem=None)
+# date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+# # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
+# # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
+# shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
+#                 file_rgi=file_rgi, rough_dem=None)
 # shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
 # shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
 # plt.show()
@@ -49,20 +49,24 @@ shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settin
 dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]), tzinfo=dt.timezone.utc) + dt.timedelta(ndays) for ndays in
                 range(10, 366 if ((year % 4 == 0) and (year % 100 != 0)) or (year % 400 == 0) else 365, 10)]
 
+#initialize the object shadow with global settings, domain (=the subset), ellps ( Earth's surface approximation)
+# if file_rgi, rough_dem are not None, the DEM is replaced by rough_dem over glaciers
+
+shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
+                 file_rgi=file_rgi, rough_dem=None)
 # Compute shadow map on those dates
 # parallelize allows parallelization, contours=0 implies that we compute for each pixel the number of days when it is shadowed (put contours={int}
 # to compute the it around the contours only)
 shadow_map = shadow.nday_shadow_map(dates, parallelize=nb_cpus, contours=0, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
-
 # Plot the shadow map
 shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadows",savefig=f'{repo}/shadow_map.png')
 plt.show()
 
-print(f"Overall processing took {round(time.time() - start_time, 2)} s")
-
+#Compute the numbers of days where each area is included in the border of the shadow
 shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=160, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
 shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadow borders",savefig=f'{repo}/shadow_borders_map.png')
-
 plt.show()
+
+print(f"Overall processing took {round(time.time() - start_time, 2)} s")

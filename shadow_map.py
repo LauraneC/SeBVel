@@ -51,9 +51,9 @@ dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]
 
 #initialize the object shadow with global settings, domain (=the subset), ellps ( Earth's surface approximation)
 # if file_rgi, rough_dem are not None, the DEM is replaced by rough_dem over glaciers
-
 shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
                  file_rgi=file_rgi, rough_dem=None)
+
 # Compute shadow map on those dates
 # parallelize allows parallelization, contours=0 implies that we compute for each pixel the number of days when it is shadowed (put contours={int}
 # to compute the it around the contours only)

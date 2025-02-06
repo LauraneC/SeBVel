@@ -240,18 +240,17 @@ class Shadow:
     #region                              CAST SHADOW
     # -----------------------------------------------------------------------------
 
-    def cast_shadow(self, 
-                    date: dt.datetime, 
-                    preprocess: bool = True, 
-                    pipeline: list = [], 
+    def cast_shadow(self,
+                    date: dt.datetime,
+                    preprocess: bool = True,
+                    pipeline: list = [],
                     plot_along_pipeline: bool = False,
+                    resize_to_ortho: bool = True,
                     clean: bool = False,
                     **kwargs):
-        
         '''
         Calculate the shadows casted by the terrain at a given {date} using Horayzon package. Shadows can thus be improved using a shadow improvement
         pipeline and the self.improve_shadow method.
-        
         Parameters
         ----------
           --> date [dt.datetime]: Date (day of the year and hour) at which shadows must be casted using Horayzon package
@@ -261,11 +260,11 @@ class Shadow:
                 An orthoimage must be provided to apply an improvement pipeline. Default is an empty list (no improvement step)
           --> plot_along_pipeline [bool] (optional): Plot the shadow at each step of the shadow improvement pipeline (see self.improve_shadow method),
                 default is False
+          --> resize_to_ortho [bool] (optional): If True, resize the casted shadow to the orthoimage size.
           --> clean [bool] (optional): Set some variables to None (those which will not be used in future processings if you don't call cast_shadow again).
                 The goal is to save memory. Here elevation_pad, lon_pad and lat_pad attributes. Default is False.
-          --> **kwargs (optional): Plot parameters if plot_along_pipeline=True (see self.plot_shadow method)  
+          --> **kwargs (optional): Plot parameters if plot_along_pipeline=True (see self.plot_shadow method)
         '''
-
         # Compute (again) indices of inner domain
         slice_in = (slice(np.where(self.lat_pad >= self.domain["lat_max"])[0][-1],
                           np.where(self.lat_pad <= self.domain["lat_min"])[0][0] + 1),
@@ -273,60 +272,48 @@ class Shadow:
                           np.where(self.lon_pad >= self.domain["lon_max"])[0][0] + 1))
         offset_0 = slice_in[0].start
         offset_1 = slice_in[1].start
-
         # Compute ECEF coordinates
         x_ecef, y_ecef, z_ecef = hray.transform.lonlat2ecef(*np.meshgrid(self.lon_pad, self.lat_pad), self.elevation_pad, ellps=self.ellps)
         dem_dim_0, dem_dim_1 = self.elevation_pad.shape
-
         self.mask_outliers = self.mask_outliers_pad[slice_in]
         self.elevation = np.ascontiguousarray(self.elevation_pad[slice_in]) # Orthometric height (height above mean sea level)
         self.lon = self.lon_pad[slice_in[1]]
         self.lat = self.lat_pad[slice_in[0]]
-
         # Set self.elevation_pad, self.lon_pad and self.lat_pad to None
         if clean:
             self.elevation_pad = None
             self.lon_pad = None
             self.lat_pad = None
             self.mask_outliers_pad = None
-
         # Compute ENU coordinates
         trans_ecef2enu = hray.transform.TransformerEcef2enu(lon_or=self.lon[int(len(self.lon) / 2)], lat_or=self.lat[int(len(self.lat) / 2)], ellps=self.ellps)
         x_enu, y_enu, z_enu = hray.transform.ecef2enu(x_ecef, y_ecef, z_ecef, trans_ecef2enu)
-
         # Compute unit vectors (up and north) in ENU coordinates for inner domain
         vec_norm_ecef = hray.direction.surf_norm(*np.meshgrid(self.lon, self.lat))
         vec_north_ecef = hray.direction.north_dir(x_ecef[slice_in], y_ecef[slice_in], z_ecef[slice_in], vec_norm_ecef, ellps=self.ellps)
         del x_ecef, y_ecef, z_ecef
-
         vec_norm_enu = hray.transform.ecef2enu_vector(vec_norm_ecef, trans_ecef2enu)
         vec_north_enu = hray.transform.ecef2enu_vector(vec_north_ecef, trans_ecef2enu)
         del vec_norm_ecef, vec_north_ecef
-
         # Merge vertex coordinates and pad geometry buffer
         vert_grid = hray.auxiliary.rearrange_pad_buffer(x_enu, y_enu, z_enu)
-
         # Compute rotation matrix (global ENU -> local ENU)
         rot_mat_glob2loc = hray.transform.rotation_matrix_glob2loc(vec_north_enu, vec_norm_enu)
         del vec_north_enu
-
         # Compute slope (in global ENU coordinates!)
         slice_in_a1 = (slice(slice_in[0].start - 1, slice_in[0].stop + 1),
                        slice(slice_in[1].start - 1, slice_in[1].stop + 1))
         vec_tilt_enu = np.ascontiguousarray(hray.topo_param.slope_plane_meth(x_enu[slice_in_a1], y_enu[slice_in_a1], z_enu[slice_in_a1],
                                                                              rot_mat=rot_mat_glob2loc, output_rot=False)[1:-1, 1:-1])
-        
         # Compute surface enlargement factor
         surf_enl_fac = 1.0 / (vec_norm_enu * vec_tilt_enu).sum(axis=2)
         if self.verbose: print("Surface enlargement factor (min/max): %.3f" % surf_enl_fac.min() + ", %.3f" % surf_enl_fac.max())
-
         # Load Skyfield data -> position lies on the surface of the ellipsoid by default
         skyapi.load.directory = os.path.dirname(self.file_dem)
         planets = skyapi.load("de421.bsp")
         sun = planets["sun"]
         earth = planets["earth"]
         loc_or = earth + skyapi.wgs84.latlon(trans_ecef2enu.lat_or, trans_ecef2enu.lon_or)
-
         # Initialise terrain
         mask = np.ones(vec_tilt_enu.shape[:2], dtype=np.uint8)
         terrain = hray.shadow.Terrain()
@@ -335,7 +322,6 @@ class Shadow:
                         offset_0, offset_1, vec_tilt_enu, vec_norm_enu,
                         surf_enl_fac, mask=mask, elevation=self.elevation,
                         refrac_cor=True)
-
         # Compute sun position
         ts = skyapi.load.timescale()
         t = ts.from_datetime(date)
@@ -346,81 +332,75 @@ class Shadow:
         z = d.m * np.sin(alt.radians)
         sun_position = np.array([x, y, z], dtype=np.float32)
         self.sun_position = {"alt": alt, "az": az, "d": d}
-
         # Calculate shadows from dem
         self.shadow = np.zeros(vec_tilt_enu.shape[:2], dtype=np.bool_)
         terrain.shadow(sun_position, self.shadow)
-
         # Remove shadow casted by DEM errors
         self.shadow[self.mask_outliers] = False
-
         # Apply a preprocessing step to the shadow before resizing it (in the improve_shadow function)
         if preprocess:
             # Separate weakly linked shadows
             self.shadow = binary_opening(self.shadow, footprint=disk(max(1, self.WEAKLY_LINKED_SHADOW_DISK_RADIUS // 8)))
-
             # Remove small shadows
             shadows = label(self.shadow, background=0, connectivity=1)
             for val in np.unique(shadows)[1:]:
                 if np.sum(shadows == val) <= self.SMALL_SHADOW_LIMIT:
                     self.shadow[shadows == val] = False
             del shadows
-
-        if self.ortho is not None:
+        if self.ortho is not None and resize_to_ortho:
             self.shadow = resize(self.shadow, self.ortho.shape)
-
             # Second preprocessing on resized shadow
             if preprocess:
                 self.shadow[self.ortho > self.SHADOW_MAX_VALUE] = False # Remove pixels with excessive value
                 # Separate weakly-linked shadows before filling gaps
-                self.shadow = binary_closing(binary_opening(self.shadow, footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS)), 
+                self.shadow = binary_closing(binary_opening(self.shadow, footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS)),
                                         footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS))
-
             if len(pipeline) > 0:
                 # Every improvement methods are made on the upsampled shadows (to ortho shape)
                 self.improve_shadow(pipeline, plot_along_pipeline, **kwargs)
 
-    def nday_shadow_map(self, 
+    def nday_shadow_map(self,
                         dates: list[dt.datetime],
                         contours: int = 0,
                         preprocess: bool = False,
                         parallelize: int | bool = False) -> np.ndarray:
-        
+
         '''
         Compute a shadow map giving the number of days among {dates} when a pixel is shadowed, for each pixel of the DEM. The number of days is either
         computed in the whole shadow (if {contours} is 0), or in a {contours}-wide buffer around the side of the shadow (if {contours} > 0) as pixels
         around shadow sides are likely to be the most impacted by the shadow during a correlation.
-        
+
         Parameters
         ----------
           --> dates [list[dt.datetime]]: List of the dates when shadows must be casted (use dt.datetime(..., tzinfo=dt.timezone.utc)).
-          --> contours [int] (optional): If 0, for each day, add every shadowed pixels to the shadow map. If > 0, for each day, add only the pixels around 
-            the shadow contours ({contours}-wide buffer) to the shadow map, in m.
+          --> contours [int] (optional): If 0, for each day, add every shadowed pixels to the shadow map. If > 0, for each day, add only the pixels around
+            the shadow contours ({contours}-wide buffer) to the shadow map.
           --> preprocess [bool] (optional): Preprocess the casted shadow (see cast_shadow() method)
           --> parallelize [int | bool] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
-            If False, sequential computation is applied. Default is False.     
+            If False, sequential computation is applied. Default is False.
         '''
 
         # Compute shadow map for the first date (gives the shape of the shadow map)
         first_date = dates.pop(0)
-        self.cast_shadow(first_date, preprocess=preprocess, clean=False)
+        self.cast_shadow(first_date, preprocess=preprocess, resize_to_ortho=False, clean=False)
         shadow_map = None
         if contours > 0:
-                contours_width = int(contours / self.DEM_RESOLUTION / 2)
-                shadow_map = ((self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width))) + \
-                              (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width)))).astype(np.uint16)
+            contours_width = int(contours / self.DEM_RESOLUTION / 2)
+            shadow_map = ((self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width))) + \
+                          (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width)))).astype(np.uint16)
         else:
             shadow_map = np.copy(self.shadow).astype(np.uint16)
 
         # Update shadow map for a given date
         def cast_shadow_date(date, shadow_map):
-            self.cast_shadow(date, preprocess=preprocess, clean=False)
-            if contours > 0: # Add only pixels around the shadow contours to the shadow_map
+            self.cast_shadow(date, preprocess=preprocess, resize_to_ortho=False, clean=False)
+            if contours > 0:  # Add only pixels around the shadow contours to the shadow_map
                 contours_width = int(contours / self.DEM_RESOLUTION / 2)
                 shad_contours = (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width))) + \
-                                (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width))) # Buffer around shadow contours
+                                (self.shadow ^ binary_erosion(self.shadow, footprint=disk(
+                                    contours_width)))  # Buffer around shadow contours
                 shadow_map[shad_contours] += 1
-            else: # Add every shadowed pixel to the shadow map
+            else:  # Add every shadowed pixel to the shadow map
                 shadow_map[self.shadow] += 1
 
         if self.verbose: dates = tqdm(dates)
@@ -434,7 +414,7 @@ class Shadow:
             self.lat = generate_memmap(self.lat, "lat")
             self.shadow = generate_memmap(self.shadow, "shadow")
             shadow_map = generate_memmap(shadow_map, "shadow_map")
-            
+
             Parallel(n_jobs=parallelize, verbose=0)(delayed(cast_shadow_date)(date, shadow_map) for date in dates)
 
             for memmap_file in glob.glob("./joblib_memmap/*"):

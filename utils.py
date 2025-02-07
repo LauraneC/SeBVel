@@ -77,6 +77,7 @@ def load_domain(file: str,
                                                     'lat_min': .., 'lat_max': ..} specifying the borders of the domain to be loaded within the image
       --> use_xdem [bool] (optional): To load a DEM, one should prefer using xdem instead of rasterio, put use_xdem=True if so, default is False
       --> reprojection [str | None] (optional): If [str], reproject the image to the given CRS before loading it, default is None
+      --> mask [str] (optional): If [str], mask the image with the given mask before loading
       --> verbose [bool] (optional): Print information along the way, default is False
 
     Returns

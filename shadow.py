@@ -146,6 +146,7 @@ class Shadow:
 
         self.file_dem = file_dem
 
+
         # Load the whole DEM
         if domain is None:
             with rio.open(file_dem) as src:
@@ -162,15 +163,57 @@ class Shadow:
         self.domain_outer = hray.domain.curved_grid(self.domain, dist_search, ellps)
         if self.verbose: print(f"Domain outer : {self.domain_outer}")
 
-        def get_resolution_in_meters(src):
-            res_lon, res_lat = src.res  # Resolution in degrees
-            lat_m = res_lat * 111320  # Approx. meters per degree latitude
-            return lat_m
 
         # Compute DEM resolution
         with rio.open(file_dem, 'r') as src:
             if src.crs.to_epsg() == 4326:
-                self.DEM_RESOLUTION = np.floor(get_resolution_in_meters(src))
+                def get_utm_epsg(lon, lat):
+                    """Get the UTM EPSG code based on longitude and latitude."""
+                    zone = math.floor((lon + 180) / 6) + 1
+                    epsg = 32600 + zone if lat >= 0 else 32700 + zone
+                    return epsg
+
+                from rasterio.warp import calculate_default_transform, reproject, Resampling
+                def reproject_raster_and_get_resolution(src_path):
+                    with rio.open(src_path) as src:
+                        lon, lat = (src.bounds.left + src.bounds.right) / 2, (src.bounds.bottom + src.bounds.top) / 2
+                        utm_epsg = get_utm_epsg(lon, lat)  # Find the best UTM projection
+
+                        # Compute transformation for reprojection
+                        transform, width, height = calculate_default_transform(
+                            src.crs, f"EPSG:{utm_epsg}", src.width, src.height, *src.bounds)
+
+                        # Define output metadata
+                        kwargs = src.meta.copy()
+                        kwargs.update({
+                            "crs": f"EPSG:{utm_epsg}",
+                            "transform": transform,
+                            "width": width,
+                            "height": height
+                        })
+
+                        # Create an in-memory raster to store reprojected data
+                        with rio.MemoryFile() as memfile:
+                            with memfile.open(**kwargs) as dst:
+                                for i in range(1, src.count + 1):  # Reproject each band
+                                    reproject(
+                                        source=rio.band(src, i),
+                                        destination=rio.band(dst, i),
+                                        src_transform=src.transform,
+                                        src_crs=src.crs,
+                                        dst_transform=transform,
+                                        dst_crs=f"EPSG:{utm_epsg}",
+                                        resampling=Resampling.nearest)
+                                # Get pixel size in meters
+                                res_x, res_y = dst.res  # Now in meters
+                                return utm_epsg, res_x, res_y
+
+                # Example usage
+                geotiff_path = file_dem
+                utm_epsg, pixel_x, pixel_y = reproject_raster_and_get_resolution(geotiff_path)
+                self.DEM_RESOLUTION = int(pixel_x)
+                print(f"Reprojected to EPSG:{utm_epsg}, Resolution: {pixel_x:.2f}m x {pixel_y:.2f}m")
+
             else:
                 self.DEM_RESOLUTION = src.res[0]
         print(f'Resolution of DEM is estimated to be {self.DEM_RESOLUTION} m')
@@ -392,7 +435,7 @@ class Shadow:
         # Compute shadow map for the first date (gives the shape of the shadow map)
         first_date = dates.pop(0)
         self.cast_shadow(first_date, preprocess=preprocess, resize_to_ortho=False, clean=False)
-        shadow_map = None
+
         if contours > 0:
             contours_width = int(contours / self.DEM_RESOLUTION / 2)
             shadow_map = ((self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width))) + \

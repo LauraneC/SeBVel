@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 # Paths and file names
 repo = "/home/charriel/Documents/Seasonality/shadow_map/" # Main repository
 # file_dem = repo + "20241002_MdG_MtBlanc_DEM_coreg.tif" # Main DEM
-file_dem = "/home/charriel/Documents/Form@ter/Metadata/DEM/30m/output_COP30.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus10m/DEM_Copernicus10m_MontBlanc.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
 file_rgi = "/home/charriel/Documents/Seasonality/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
 file_rough_dem = "/home/charriel/Documents/Form@ter/Metadata/DEM/30m/output_COP30.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)

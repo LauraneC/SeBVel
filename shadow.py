@@ -13,7 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import skimage.draw as skdraw
-import geopandas as gpd
+import math
 
 from tqdm import tqdm
 from utils import load_domain, compute_grad, generate_memmap
@@ -162,9 +162,18 @@ class Shadow:
         self.domain_outer = hray.domain.curved_grid(self.domain, dist_search, ellps)
         if self.verbose: print(f"Domain outer : {self.domain_outer}")
 
+        def get_resolution_in_meters(src):
+            res_lon, res_lat = src.res  # Resolution in degrees
+            lat_m = res_lat * 111320  # Approx. meters per degree latitude
+            return lat_m
+
         # Compute DEM resolution
         with rio.open(file_dem, 'r') as src:
-            self.DEM_RESOLUTION = (src.bounds.right - src.bounds.left) / src.width
+            if src.crs.to_epsg() == 4326:
+                self.DEM_RESOLUTION = np.floor(get_resolution_in_meters(src))
+            else:
+                self.DEM_RESOLUTION = src.res[0]
+        print(f'Resolution of DEM is estimated to be {self.DEM_RESOLUTION} m')
 
         # Load domain in the image
         self.lon_pad, self.lat_pad, self.elevation_pad, mask = load_domain(file_dem, domain_outer=self.domain_outer, use_xdem=True, 

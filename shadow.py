@@ -1735,14 +1735,17 @@ class Shadow:
 
         if fig != None and savefig != None:
             fig.savefig(savefig)
-    def write_shadow_map(self,shadow_map,output_file):
+
+
+    def write_shadow_map(self,shadow_map:np.array,output_file:str):
+        """
+        Write the shadow map to a geotiff file
+        :param shadow_map: [ndarray] representing the shadow map
+        :param output_file: [str] the output file name
+        """
 
         # Open the DEM file to get metadata
         dem = rx.open_rasterio(self.file_dem).sel(band=1)
-        # Extract transformation, CRS, and metadata
-        transform = dem.rio.transform()
-        crs = dem.rio.crs
-        nodata = dem.rio.nodata
 
         # Save shadow_map as a GeoTIFF
         with rio.open(
@@ -1753,9 +1756,9 @@ class Shadow:
                 width=shadow_map.shape[1],  # Columns
                 count=1,  # Single-band raster
                 dtype=shadow_map.dtype,
-                crs=crs,
-                transform=transform,
-                nodata=nodata
+                crs=dem.rio.crs,
+                transform=dem.rio.transform(),
+                nodata=dem.rio.nodata
         ) as dst:
             dst.write(shadow_map, 1)  # Write the first band
 

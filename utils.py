@@ -203,3 +203,46 @@ def generate_memmap(array: np.ndarray,
     dump(array, array_filename_memmap)
 
     return load(array_filename_memmap, mmap_mode='w+')
+
+def split_domain(file_dem,nb_split, iteration):
+        with rio.open(file_dem) as src:  # get the boundary of the DEM
+            domain = {"lon_min": src.bounds.left, "lon_max": src.bounds.right,
+                      "lat_min": src.bounds.bottom, "lat_max": src.bounds.top}
+            if abs(domain["lon_min"]-domain["lon_max"])-abs(domain["lat_min"]-domain["lat_max"]):
+                width_split = (domain["lon_max"]-domain["lon_min"])/nb_split
+                domain = {"lon_min": src.bounds.left + iteration * width_split, "lon_max": src.bounds.left +(iteration + 1) * width_split,
+                          "lat_min": src.bounds.bottom, "lat_max": src.bounds.top}
+            else:
+                width_split = (domain["lat_max"]-domain["lat_min"])/nb_split
+                domain = {"lon_min": src.bounds.left , "lon_max": (iteration + 1) * width_split,
+                          "lat_min": src.bounds.bottom + iteration * width_split, "lat_max": src.bounds.bottom + (iteration + 1) * width_split}
+        return domain
+
+import glob
+def merge_geotiff(files,output_path) :
+    # Define the path to your GeoTIFF files
+    tiff_files = glob.glob(files)  # Adjust the path accordingly
+
+    # Open all GeoTIFFs
+    src_files_to_mosaic = [rio.open(fp) for fp in tiff_files]
+
+    # Merge the rasters
+    mosaic, out_transform = rio.merge(src_files_to_mosaic)
+
+    # Save the merged raster
+    out_meta = src_files_to_mosaic[0].meta.copy()
+    out_meta.update({
+        "driver": "GTiff",
+        "height": mosaic.shape[1],
+        "width": mosaic.shape[2],
+        "transform": out_transform
+    })
+
+    with rio.open(output_path, "w", **out_meta) as dest:
+        dest.write(mosaic)
+
+    # Close all input files
+    for src in src_files_to_mosaic:
+        src.close()
+
+    print(f"Merged GeoTIFF saved to {output_path}")

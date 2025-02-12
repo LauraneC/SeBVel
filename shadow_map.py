@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
+from bokeh.io import output_file
 
 from shadow import Shadow
 
@@ -60,13 +61,17 @@ shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settin
 # to compute the it around the contours only)
 shadow_map = shadow.nday_shadow_map(dates, parallelize=nb_cpus, contours=0, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
+shadow.write_shadow_map(shadow_map,output_file=f'{repo}/shadow_map.tif')
 # Plot the shadow map
 shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadows",savefig=f'{repo}/shadow_map.png')
 plt.show()
 
+
+
 #Compute the numbers of days where each area is included in the border of the shadow
 shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=160, preprocess=filter_small_shadows)
 shadow_map = (shadow_map * 365 / (len(dates)+1)).astype(np.uint16) # Convert it to a 365 days count
+shadow.write_shadow_map(shadow_map,output_file=f'{repo}/shadow_map_border.tif')
 shadow.plot_shadow_map(shadow_map, background='ortho', plot_mode='imshow', alpha=0.5, cbar_label="Nb days under shadow borders",savefig=f'{repo}/shadow_borders_map.png')
 plt.show()
 

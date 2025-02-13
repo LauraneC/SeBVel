@@ -8,6 +8,8 @@ import numpy as np
 import horayzon as hray
 import rasterio as rio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+from rasterio.transform import Affine
+
 import rioxarray as rx
 import skyfield.api as skyapi
 import matplotlib as mpl
@@ -28,7 +30,6 @@ from scipy.interpolate import griddata, interpn
 from scipy.ndimage import median_filter
 from skimage.exposure import histogram
 from joblib import Parallel, delayed
-
 
 
 class Shadow:
@@ -1736,8 +1737,7 @@ class Shadow:
         if fig != None and savefig != None:
             fig.savefig(savefig)
 
-
-    def write_shadow_map(self,shadow_map:np.array,output_file:str):
+    def write_shadow_map(self, shadow_map: np.array, output_file: str):
         """
         Write the shadow map to a geotiff file
         :param shadow_map: [ndarray] representing the shadow map
@@ -1746,6 +1746,13 @@ class Shadow:
 
         # Open the DEM file to get metadata
         dem = rx.open_rasterio(self.file_dem).sel(band=1)
+
+        current_transform = dem.rio.transform()
+        # Create a new Affine transformation with updated values
+        new_transform = Affine(
+            current_transform.a, current_transform.b, self.lon[0], current_transform.d, current_transform.e,
+            self.lat[0])
+        del current_transform
 
         # Save shadow_map as a GeoTIFF
         with rio.open(
@@ -1757,12 +1764,14 @@ class Shadow:
                 count=1,  # Single-band raster
                 dtype=shadow_map.dtype,
                 crs=dem.rio.crs,
-                transform=dem.rio.transform(),
+                transform=new_transform,
                 nodata=dem.rio.nodata
         ) as dst:
             dst.write(shadow_map, 1)  # Write the first band
-
         print(f"Saved shadow_map as {output_file}")
+
+
+
     #endregion
     #%% ---------------------------------------------------------------------------
     #region                          ADDITIONAL METHODS

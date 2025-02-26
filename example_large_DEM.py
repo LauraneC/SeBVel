@@ -7,12 +7,14 @@ warnings.filterwarnings('ignore')
 ### PARAMATERS
 
 # Paths and file names
-repo = "/home/charriel/Documents/Seasonality/shadow_map/" # Main repository
-file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus10m/DEM_Copernicus10m_MontBlanc.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
-file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
-file_rgi = "/home/charriel/Documents/Seasonality/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
-file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
-path_save = "/home/charriel/Documents/Seasonality/shadow_map/shadow_maps/"
+repo = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/" # Main repository
+file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+#file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
+file_ortho = None
+file_rgi = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
+# file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+file_rough_dem = None
+path_save = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/shadow_maps/"
 
 # Boundary parameters
 domain = None
@@ -38,5 +40,5 @@ save=True#save plots and geotiff files
 start_time = time.time()
 splitted_process(file_dem,
                  file_ortho,file_rgi,rough_dem=file_rough_dem,year=year,hour=hour,nb_split=nb_split,global_settings=global_settings ,domain=domain,
-                 filter_small_shadows=filter_small_shadows,contours = 160,nb_cpus=nb_cpus,path_save=path_save,save=save,make_plot=make_plot,show=show,verbose=False)
+                 filter_small_shadows=filter_small_shadows,contours = 160,time_span=1,nb_cpus=nb_cpus,path_save=path_save,save=save,make_plot=make_plot,show=show,verbose=False)
 print(f"Overall processing took {round(time.time() - start_time, 2)} s")

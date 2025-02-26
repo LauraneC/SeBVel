@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import rasterio as rio
 from rasterio.merge import merge
 import os
+import numpy as np
 
 
 def split_domain(file_dem, nb_split, iteration):
@@ -53,7 +54,7 @@ def merge_geotiff(files, output_path):
 
 def splitted_process(file_dem: str | None = None,
                      file_ortho: str | None = None, file_rgi: str | None = None, rough_dem: str | None = None,
-                     year: int = 2021, hour: str = "10:30", nb_split: int = 5, global_settings: dict = {},
+                     year: int = 2021, hour: str = "10:30",time_span:int=10, nb_split: int = 5, global_settings: dict = {},
                      dist_search=1.0, ellps: str = "WGS84", domain: dict | None = None,
                      filter_small_shadows: bool = False, contours: int = 160, nb_cpus: int = 8,
                      path_save: str | None = None, save: bool = True, make_plot: bool = True, show: bool = False,
@@ -61,7 +62,7 @@ def splitted_process(file_dem: str | None = None,
     # Define the dates when you want to cast shadows (here every 10 days)
     dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]),
                          tzinfo=dt.timezone.utc) + dt.timedelta(ndays) for ndays in
-             range(10, 366 if ((year % 4 == 0) and (year % 100 != 0)) or (year % 400 == 0) else 365, 10)]
+             range(time_span , 366 if ((year % 4 == 0) and (year % 100 != 0)) or (year % 400 == 0) else 365,time_span )]
 
     for iteration_split in range(nb_split):
         if verbose: print(f"Split iteration {iteration_split}")
@@ -98,7 +99,6 @@ def splitted_process(file_dem: str | None = None,
                                    savefig=save_fig)
         if show: plt.show()
         del shadow_map, shadow, domain
-        break
 
     if verbose: print(f"Process of {nb_split} iterations complete")
 

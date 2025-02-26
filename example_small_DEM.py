@@ -4,21 +4,23 @@ from shadow import Shadow
 import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
+from core import split_domain
 
 warnings.filterwarnings('ignore')
 
 # Paths and file names
-repo = "/home/charriel/Documents/Seasonality/shadow_map/" # Main repository
-# file_dem = repo + "20241002_MdG_MtBlanc_DEM_coreg.tif" # Main DEM
+repo = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/" # Main repository
 file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus10m/DEM_Copernicus10m_MontBlanc.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
-file_rgi = "/home/charriel/Documents/Seasonality/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
+#file_ortho = None
+file_rgi = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
 file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
-path_save = "/home/charriel/Documents/Seasonality/shadow_map/shadow_maps/"
+path_save = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/shadow_maps/"
+
 # Boundary parameters
 domain = None
-domain = {"lon_min": 6.825, "lon_max": 6.915,
-          "lat_min": 45.825, "lat_max": 45.895} # Domain boundaries [degree]
+#domain = {"lon_min": 6.825, "lon_max": 6.915,
+#          "lat_min": 45.825, "lat_max": 45.895} # Domain boundaries [degree]
 dist_search = 1.0  # Search distance for terrain shading [kilometre]
 ellps = "WGS84"  # Earth's surface approximation (sphere, GRS80 or WGS84)
 
@@ -33,15 +35,20 @@ hour = "10:30" # Same hour each day
 
 start_time = time.time()
 
-# Example 1 - Casting a shadow
-# date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
-# # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
-# # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
-# shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
-#                 file_rgi=file_rgi, rough_dem=None)
-# shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
-# shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
-# plt.show()
+nb_split = 5
+for iteration_split in range(nb_split):
+    print(f"Split iteration {iteration_split}")
+    domain = split_domain(file_dem, nb_split,
+                          iteration_split)  # split the domain in nb_splits subset, and select the subset iteration_split
+    # Example 1 - Casting a shadow
+    date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+    # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
+    # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
+    shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
+                    file_rgi=file_rgi, rough_dem=None)
+    shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
+    shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
+    plt.show()
 
 # Example 2 - Generating a shadow map
 # Define the dates when you want to cast shadows (here every 10 days)

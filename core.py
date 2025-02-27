@@ -89,7 +89,7 @@ def splitted_process(file_dem: str | None = None,
 
         # Compute the number of days covered by shadows
         shadow_map = shadow.nday_shadow_map(dates, parallelize=nb_cpus, contours=0, preprocess=filter_small_shadows)
-        shadow_map = (shadow_map * 365 / (len(dates) + 1)).astype(np.uint16)  # Convert it to a 365 days count
+        shadow_map = (shadow_map * (365 / (len(dates) + 1))).astype(np.uint16)  # Convert it to a 365 days count
         if save: shadow.write_shadow_map(shadow_map,
                                          output_file=f'{path_save}/shadow_map{iteration_split}.tif')  # save it as geotiff
         # Plot the shadow map

@@ -7,9 +7,6 @@ import datetime as dt
 import numpy as np
 import horayzon as hray
 import rasterio as rio
-from rasterio.warp import calculate_default_transform, reproject, Resampling
-from rasterio.transform import Affine
-
 import rioxarray as rx
 import skyfield.api as skyapi
 import matplotlib as mpl
@@ -30,6 +27,8 @@ from scipy.interpolate import griddata, interpn
 from scipy.ndimage import median_filter
 from skimage.exposure import histogram
 from joblib import Parallel, delayed
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+from rasterio.transform import Affine
 
 
 class Shadow:
@@ -150,7 +149,6 @@ class Shadow:
 
         self.file_dem = file_dem
 
-
         # Load the whole DEM
         if domain is None:
             with rio.open(file_dem) as src: #get the boundary of the DEM
@@ -166,7 +164,6 @@ class Shadow:
         self.ellps = ellps
         self.domain_outer = hray.domain.curved_grid(self.domain, dist_search, ellps)
         if self.verbose: print(f"Domain outer : {self.domain_outer}")
-
 
         # Compute DEM resolution
         with rio.open(file_dem, 'r') as src:

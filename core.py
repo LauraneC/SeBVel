@@ -1,27 +1,40 @@
 import glob
-from shadow import Shadow
+import os
+
 import datetime as dt
 import matplotlib.pyplot as plt
 import rasterio as rio
-from rasterio.merge import merge
-import os
 import numpy as np
 
+from shadow import Shadow
+from rasterio.merge import merge
+from pyproj import Transformer
 
-def split_domain(file_dem, nb_split, iteration):
+
+def split_domain(file_dem, nb_split, iteration, domain=None):
     with rio.open(file_dem) as src:  # get the boundary of the DEM
-        domain = {"lon_min": src.bounds.left, "lon_max": src.bounds.right,
-                  "lat_min": src.bounds.bottom, "lat_max": src.bounds.top}
-        if abs(domain["lon_min"] - domain["lon_max"]) - abs(domain["lat_min"] - domain["lat_max"]):
-            width_split = (domain["lon_max"] - domain["lon_min"]) / nb_split
-            domain = {"lon_min": src.bounds.left + iteration * width_split,
-                      "lon_max": src.bounds.left + (iteration + 1) * width_split,
+        if domain is None:
+            domain = {"lon_min": src.bounds.left, "lon_max": src.bounds.right,
                       "lat_min": src.bounds.bottom, "lat_max": src.bounds.top}
         else:
+            transformer = Transformer.from_crs("EPSG:4326", src.crs, always_xy=True)
+            (domain["lon_min"], domain["lat_min"]) = transformer.transform(domain["lon_min"], domain["lat_min"])
+            (domain["lon_max"], domain["lat_max"]) = transformer.transform(domain["lon_max"], domain["lat_max"])          
+
+        if abs(domain["lon_max"] - domain["lon_min"]) > abs(domain["lat_max"] - domain["lat_min"]):
+            width_split = (domain["lon_max"] - domain["lon_min"]) / nb_split
+            domain["lon_min"] = domain["lon_min"] + iteration * width_split
+            domain["lon_max"] = domain["lon_min"] + (iteration + 1) * width_split
+        else:
             width_split = (domain["lat_max"] - domain["lat_min"]) / nb_split
-            domain = {"lon_min": src.bounds.left, "lon_max": (iteration + 1) * width_split,
-                      "lat_min": src.bounds.bottom + iteration * width_split,
-                      "lat_max": src.bounds.bottom + (iteration + 1) * width_split}
+            domain["lat_min"] = domain["lat_min"] + iteration * width_split
+            domain["lat_max"] = domain["lat_min"] + (iteration + 1) * width_split
+            
+        if src.crs != "EPSG:4326":
+            transformer = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
+            (domain["lon_min"], domain["lat_min"]) = transformer.transform(domain["lon_min"], domain["lat_min"])
+            (domain["lon_max"], domain["lat_max"]) = transformer.transform(domain["lon_max"], domain["lat_max"])
+
     return domain
 
 

@@ -102,7 +102,7 @@ def splitted_process(file_dem: str | None = None,
 
         # Compute the numbers of days where each area is included in the border of the shadow
         shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=contours, preprocess=filter_small_shadows)
-        shadow_map = (shadow_map * 365 / (len(dates) + 1)).astype(np.uint16)  # Convert it to a 365 days count
+        shadow_map = (shadow_map * (365 / (len(dates) + 1))).astype(np.uint16)  # Convert it to a 365 days count
         if save: shadow.write_shadow_map(shadow_map,
                                          output_file=f'{path_save}/shadow_map_border{iteration_split}.tif')
         if make_plot:
@@ -115,14 +115,10 @@ def splitted_process(file_dem: str | None = None,
 
     if verbose: print(f"Process of {nb_split} iterations complete")
 
-    if not os.path.exists(f'{path_save}/merged'):
-        os.mkdir(f'{path_save}/merged')
-
-    merge_geotiff(f'{path_save}shadow_map_border*tif', f'/{path_save}/merged/shadow_map_border_merged.tif')
-    merge_geotiff(f'{path_save}/shadow_map*tif', f'{path_save}/merged/shadow_map_merged.tif')
+    merge_geotiff(f'{path_save}shadow_map_border*tif', f'/{path_save}/shadow_map_border_merged.tif')
+    merge_geotiff(f'{path_save}/shadow_map*tif', f'{path_save}/shadow_map_merged.tif')
 
     if verbose: print(f"Geotiff merged")
 
-    os.system(f'rm {path_save}shadow_map*tif')
-    os.system(f'mv {path_save}/merged/shadow_*_merged.tif {path_save}/shadow_*_merged.tif')
-    os.system(f'rm -r {path_save}/merged')
+    os.system(f'rm {path_save}shadow_map?tif')
+    os.system(f'rm {path_save}shadow_map_border?tif')

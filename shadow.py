@@ -1759,7 +1759,7 @@ class Shadow:
                 height=shadow_map.shape[0],  # Rows
                 width=shadow_map.shape[1],  # Columns
                 count=1,  # Single-band raster
-                dtype=shadow_map.dtype,
+                dtype=np.float32,
                 crs=dem.rio.crs,
                 transform=new_transform,
                 nodata=dem.rio.nodata

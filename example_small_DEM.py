@@ -34,21 +34,21 @@ hour = "10:30" # Same hour each day
 
 start_time = time.time()
 
-nb_split = 5
-date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
-for iteration_split in range(nb_split):
-    print(f"Split iteration {iteration_split}")
-    domain = split_domain(file_dem, nb_split,
-                          iteration_split, domain=domain)  # split the domain in nb_splits subset, and select the subset iteration_split
-    # Example 1 - Casting a shadow
-    date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
-    # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
-    # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
-    shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
-                    file_rgi=file_rgi, rough_dem=None)
-    shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
-    shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
-    plt.show()
+# nb_split = 5
+# date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+# for iteration_split in range(nb_split):
+#     print(f"Split iteration {iteration_split}")
+#     domain = split_domain(file_dem, nb_split,
+#                           iteration_split, domain=domain)  # split the domain in nb_splits subset, and select the subset iteration_split
+#     # Example 1 - Casting a shadow
+#     date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+#     # Create shadow object and load DEM and orthoimage in the given domain. If specified, file_rgi and rough_dem allow to degrade DEM's quality in glacier areas to
+#     # limit the impact of crevasses on the shadow maps (put None if you don't want to degrade it)
+#     shadow = Shadow(file_dem=file_dem, file_ortho=file_ortho, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True,
+#                     file_rgi=file_rgi, rough_dem=None)
+#     shadow.cast_shadow(date, preprocess=filter_small_shadows, clean=False) # Cast the shadows
+#     shadow.plot_shadow(background='ortho', plot_mode='imshow') # Plot the shadows above the orthoimage using plt.imshow
+#     plt.show()
 
 # Example 2 - Generating a shadow map
 nb_day = 366 if ((year % 4 == 0) and (year % 100 != 0)) or (year % 400 == 0) else 365

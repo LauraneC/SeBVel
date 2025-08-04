@@ -1,10 +1,9 @@
 import time
 import warnings
-from shadow import Shadow
+from src.SErrVel.shadow import Shadow
 import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
-from core import split_domain
 
 warnings.filterwarnings('ignore')
 

@@ -4,7 +4,7 @@ import warnings
 import datetime as dt
 import matplotlib.pyplot as plt
 
-from shadow import Shadow
+from src.SErrVel.shadow import Shadow
 
 warnings.filterwarnings('ignore')
 

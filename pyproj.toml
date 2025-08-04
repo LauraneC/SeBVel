@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "SErrVel"
+dynamic = ["version"] #dynamic versioning
+authors = [
+  { name="Laurane Charrier", email="laurane.charrier@outlook.com" }
+]
+description = "A package to map SEsonnal Errors in (ice) Velocity"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "GPL-3.0-only" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"]
+
+dependencies = [
+  "embree3",
+  "tbb-devel",
+  "cython",
+  "numpy",
+  "scipy",
+  "tqdm",
+  "requests",
+  "xarray",
+  "netcdf4",
+  "matplotlib",
+  "pillow ",
+  "skyfield",
+  "pyproj",
+  "xdem",
+
+]
+
+
+[project.urls]
+Homepage = "https://github.com/LauraneC/SeErrVel.git"
+Issues = "https://github.com/pypa/sampleproject/issues"
+
+
+[tool.hatch.version]
+path = "src/ticoi/__about__.py"
+
+[tool.hatch.envs.dev]
+inherit = ["default"]
+dependencies = [
+  "ruff",
+  "pytest",
+  "pre-commit"
+]
+
+[tool.hatch.envs.test]
+dependencies = [
+  "pytest",
+  "nbconvert jupyter"#to run jupernotebook
+]
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.10","3.11", "3.12"]
+
+[tool.ruff]
+line-length = 120

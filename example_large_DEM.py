@@ -1,6 +1,6 @@
 import time
 import warnings
-from core import splitted_process
+from src.SErrVel.core import splitted_process
 
 warnings.filterwarnings('ignore')
 

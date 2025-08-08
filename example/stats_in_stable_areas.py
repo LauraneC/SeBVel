@@ -15,13 +15,13 @@ cube.load(cube_name_list[0], pick_date=["2017-01-01", "2017-03-30"])
 import geopandas as gpd
 gdf = gpd.read_file(mask_file)
 gdf = gdf.to_crs(cube.ds.rio.crs)
-cube.ds = cube.ds.rio.write_crs()
+cube.ds.rio.write_crs(cube.ds.rio.crs, inplace=True)
 masked = cube.ds.rio.clip(gdf.geometry, gdf.crs, drop=False, all_touched=True, invert=True)
 vv_mean = masked["vx"].mean(axis=2)
 
-cube.mask_cube(mask=mask_file)
-# vv_mean = np.nanmean(cube.ds["vx"],axis=2)
-vv_mean = cube.ds["vx"].mean(axis=2)
+# cube.mask_cube(mask=mask_file)
+# # vv_mean = np.nanmean(cube.ds["vx"],axis=2)
+# vv_mean = cube.ds["vx"].mean(axis=2)
 
 print(cube)
 
@@ -46,7 +46,7 @@ gdf = gdf.to_crs(epsg=32632)
 gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=1)
 
 # Plot raster
-img1 = ax.imshow(vv_mean, cmap='seismic', vmin=-50, vmax=50, extent=extent)
+img1 = ax.imshow(vv_mean, cmap='seismic', vmin=-50, vmax=50, extent=extent, origin='lower')
 
 
 # Add colorbar

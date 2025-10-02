@@ -11,7 +11,15 @@ from rasterio.merge import merge
 from pyproj import Transformer
 
 
-def split_domain(file_dem, nb_split, iteration, domain=None):
+def split_domain(file_dem:str, nb_split:int, iteration:int, domain:dict|None=None):
+    """
+    Get the spatial coordinates of the spatial domain for a given block during the iteratition process
+    :param file_dem: filename of the DEM
+    :param nb_split: number of blocks to split the domain into
+    :param iteration: number of iteration at which the process is
+    :param domain: already loaded spatial domain
+    :return:
+    """
     with rio.open(file_dem) as src:  # get the boundary of the DEM
         if domain is None:
             domain = {"lon_min": src.bounds.left, "lon_max": src.bounds.right,
@@ -38,7 +46,12 @@ def split_domain(file_dem, nb_split, iteration, domain=None):
     return domain
 
 
-def merge_geotiff(files, output_path):
+def merge_geotiff(files:str, output_path:str):
+    """
+    Merge geotiff files into a single file
+    :param files: path of the files to merge
+    :param output_path: name of the output file
+    """
     tiff_files = glob.glob(files)
     # Open all GeoTIFFs
     src_files_to_mosaic = [rio.open(fp) for fp in tiff_files]

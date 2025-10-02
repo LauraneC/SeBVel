@@ -5,7 +5,7 @@ import glob
 
 import datetime as dt
 import numpy as np
-import horayzon as hray
+import horayzon as hray #Steger, C. R., Steger, B., & Schär, C. (2022). HORAYZON v1. 2: an efficient and flexible ray-tracing algorithm to compute horizon and sky view factor. Geoscientific Model Development, 15(17), 6817-6840.
 import rasterio as rio
 import rioxarray as rx
 import skyfield.api as skyapi
@@ -16,7 +16,7 @@ import skimage.draw as skdraw
 import math
 
 from tqdm import tqdm
-from utils import load_domain, compute_grad, generate_memmap
+from src.SErrVel.utils import load_domain, compute_grad, generate_memmap
 from pyproj import Transformer
 from skimage.morphology import disk, binary_closing, binary_opening, binary_erosion, binary_dilation
 from skimage.measure import label, regionprops
@@ -125,7 +125,7 @@ class Shadow:
                  dist_search: float = 1.0, 
                  ellps: str = 'WGS84',
                  file_rgi: str | None = None,
-                 rough_dem: int | float | str = 16):
+                 rough_dem: int | float | str = None):
         
         '''
         Load the Digital Elevation Model (DEM) which is going to be used to cast the shadows. The image is cropped to a given {domain}.
@@ -134,7 +134,7 @@ class Shadow:
         ----------
           --> file_dem [str]: Path to the file containing the DEM
           --> domain [dict | None] (optional): If not None, crops the image to this domain (and pads it to reach Horayzon requirements, 
-                see utils.load_domain function). If None, load the whole image (/!\ takes a lot of memory). Default is None.
+                see utils.load_domain function). If None, load the whole image (takes a lot of memory). Default is None.
           --> dist_search [float] (optional): Maximum shadow size (in km) for Horayzon, it has an impact on the size of the padding when loading
                 the image, default is 0.5
           --> ellps [str] (optional): Reference ellipsoid to compute the domain outer, default is 'WGS84'
@@ -246,12 +246,13 @@ class Shadow:
 
                 self.elevation_pad = np.where(mask & (rough_dem > 0), rough_dem, self.elevation_pad) #replace the elevation pad values by the rough dem ones, in the mask area
                 print(f'ELEVATION PAD SHAPE{self.elevation_pad.shape}')
+
     def load_ortho(self, 
                    file_ortho: str) -> None:
         
         '''
         Load an orthoimage and crop it to the domain outer (self.domain_outer, see self.load_dem method).
-          /!\ The DEM must be loaded before the orthoimage (using self.load_dem method) 
+          The DEM must be loaded before the orthoimage (using self.load_dem method)
 
         Parameters
         ----------

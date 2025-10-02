@@ -1,0 +1,26 @@
+name: myenv
+channels:
+  - conda-forge
+dependencies:
+  - embree3
+  - tbb-devel
+  - cython
+  - numpy
+  - setuptools
+  - scipy
+  - tqdm
+  - geographiclib
+  - requests
+  - xarray
+  - netcdf4
+  - matplotlib
+  - pillow
+  - skyfield
+  - pyproj
+  - scikit-image
+  - xdem
+  - utils
+
+#embree3 tbb-devel cython setuptools numpy scipy geographiclib tqdm requests xarray
+#
+# embree3 tbb-devel cython setuptools numpy scipy geographiclib tqdm requests xarray netcdf4 matplotlib pillow skyfield pyproj ipytho

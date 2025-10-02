@@ -47,8 +47,6 @@ start = time.time()
 shadow = Shadow(file_dem=file_dem, settings=global_settings, domain=domain, dist_search=dist_search, ellps=ellps, verbose=True)
 # shadow.load_ortho(file_ortho)
 shadow.cast_shadow(date, preprocess=True,
-                #    pipeline=[(shadow.regional_flood, {"parallelize": False}, "Regionaly flooded shadows"),
-                #              (shadow.refine_contours, {"parallelize": False, "contours_buffer_size": 15, "win_size": 150}, "Contour refined shadows")],
                    pipeline=[],
                    plot_along_pipeline=True)
 

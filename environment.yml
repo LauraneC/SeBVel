@@ -19,4 +19,3 @@ dependencies:
   - pyproj
   - scikit-image
   - xdem
-  - utils

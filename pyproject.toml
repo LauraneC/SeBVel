@@ -8,7 +8,7 @@ dynamic = ["version"] #dynamic versioning
 authors = [
   { name="Laurane Charrier", email="laurane.charrier@outlook.com" }
 ]
-description = "A package to map SEsonnal Errors in (ice) Velocity"
+description = "A package to map SEsonnal Errors in Velocity field"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "GPL-3.0-only" }

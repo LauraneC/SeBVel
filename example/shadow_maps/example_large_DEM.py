@@ -6,15 +6,26 @@ warnings.filterwarnings('ignore')
 
 ### PARAMATERS
 
+# # Paths and file names
+# repo = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/" # Main repository
+# file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+# #file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
+# file_ortho = None
+# file_rgi = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
+# # file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+# file_rough_dem = None
+# path_save = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/shadow_maps/"
+#
+
 # Paths and file names
-repo = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/" # Main repository
-file_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+file_dem = "/home/charrierl/Documents/Collaborations/Ariane/shadow/COP30_NWArg_PS_downscaled30_EPSG4326.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 #file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
 file_ortho = None
-file_rgi = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/RGI60_MtBlanc/RGI60_MtBlanc_UTM32N.shp" # RGI file (glaciers inventory)
+file_rgi = None # RGI file (glaciers inventory)
 # file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 file_rough_dem = None
-path_save = "/home/charriel/Documents/Seasonality/shadows_projection/shadow_map/shadow_maps/"
+path_save = "/home/charrierl/Documents/Collaborations/Ariane/shadow/"
+
 
 # Boundary parameters
 domain = None
@@ -29,7 +40,7 @@ year = 2024
 hour = "10:30" # Same hour each day
 
 #nb of subsets used to split the process
-nb_split = 5
+nb_split = 1
 
 make_plot=False #make plot
 show=False#display it

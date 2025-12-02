@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import rasterio as rio
 import numpy as np
 
-from shadow import Shadow
+from src.SErrVel.shadow import Shadow
 from rasterio.merge import merge
 from pyproj import Transformer
 
@@ -132,6 +132,3 @@ def splitted_process(file_dem: str | None = None,
     merge_geotiff(f'{path_save}/shadow_map*tif', f'{path_save}/shadow_map_merged.tif')
 
     if verbose: print(f"Geotiff merged")
-
-    os.system(f'rm {path_save}shadow_map?tif')
-    os.system(f'rm {path_save}shadow_map_border?tif')

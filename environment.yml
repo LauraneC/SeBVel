@@ -2,7 +2,7 @@ name: myenv
 channels:
   - conda-forge
 dependencies:
-  - embree3
+  - embree
   - tbb-devel
   - cython
   - numpy

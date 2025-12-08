@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="$USER_HOME$/micromamba/envs/swot_env" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="$USER_HOME$/micromamba/envs/env_SerrVel" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="$USER_HOME$/micromamba/envs/env_SebVel" project-jdk-type="Python SDK" />
 </project>

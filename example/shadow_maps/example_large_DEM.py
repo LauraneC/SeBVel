@@ -1,6 +1,6 @@
 import time
 import warnings
-from src.SErrVel.core import splitted_process
+from SeBVel.core import splitted_process
 
 warnings.filterwarnings('ignore')
 
@@ -37,7 +37,7 @@ nb_cpus = 8
 
 # Acquisition date (/!\ might be different from data submission date)
 year = 2024
-hour = "14:00" # Same hour each day
+hour = "11:30" # Same hour each day
 
 #nb of subsets used to split the process
 nb_split = 1

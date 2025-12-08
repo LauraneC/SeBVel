@@ -8,7 +8,9 @@ First, you can simulate shadow maps according to a given DEM:
 * You can compute shadow mask for a given date and hour, see an example [here](example/shadow_maps/example_shadow_for_one_date.py).
 * You can compute the number of days under shadow extents and borders, see an example [for large DEM](example/shadow_maps/example_large_DEM.py) and [small DEM](example/shadow_maps/example_small_DEM.py).
 
-Second, we can compute average velocity over static areas, see an example [here](example/static_areas/stats_in_stable_areas.py)
+Second, we can comput velocity over static areas:
+* , see an example [here](example/static_areas/stats_in_stable_areas.py)
+
 
 If you use this package, please cite:
 
@@ -19,10 +21,10 @@ If you use this package, please cite:
 Clone the git repository and set up the conda environment:
 
 ```
-git clone git@github.com:LauraneC/SErrVel.git
-cd SErrVel
-mamba env create -f environment.yml -n SErrVel
-mamba activate SErrVel
+git clone git@github.com:LauraneC/SeBVel.git
+cd SeBVel
+mamba env create -f environment.yml -n SeBVel
+mamba activate SeBVel
 pip install -e .
 git clone https://github.com/ChristianSteger/HORAYZON.git
 cd HORAYZON

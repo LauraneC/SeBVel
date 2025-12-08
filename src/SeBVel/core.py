@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import rasterio as rio
 import numpy as np
 
-from src.SErrVel.shadow import Shadow
+from SeBVel.shadow import Shadow
 from rasterio.merge import merge
 from pyproj import Transformer
 

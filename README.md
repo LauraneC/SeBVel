@@ -5,11 +5,14 @@
 This code enable you to assess seasonal bias in velocity or displacement maps derived from optical images.
 
 First, you can simulate shadow maps according to a given DEM:
-* You can compute shadow mask for a given date and hour, see an example [here](example/shadow_maps/example_shadow_for_one_date.py).
-* You can compute the number of days under shadow extents and borders, see an example [for large DEM](example/shadow_maps/example_large_DEM.py) and [small DEM](example/shadow_maps/example_small_DEM.py).
+* you can compute shadow mask for a given date and hour, see an example [here](example/1- mapping_shadows/shadow_map_for_one_date.py).
+* you can compute the number of days under shadow extents and borders, see an example [for large DEM](example/1-mapping_shadows/shadow_map_large_DEM.py) and [small DEM](example/1- mapping_shadows/shadow_map_large_DEM.py).
 
-Second, we can comput velocity over static areas:
-* , see an example [here](example/static_areas/stats_in_stable_areas.py)
+Second, we can compute the seasonal amplitude of velocity over static areas, which is a proxy of the seasonal bias:
+* see an example for the ITS_LIVE dataset [here](example/2-compute_seasonal_bias/Seasonality_Alps_ITS_LIVE.py)
+
+Third, we estimate the expected seasonal bias over glacier, by interpolating the seasonal bias over static areas using the slope and aspect:
+* see an example [here](example/3-estimation_of_seasonal_bias_over_glaciers/interpolation_to_glacier_areas.ipynb)
 
 
 If you use this package, please cite:

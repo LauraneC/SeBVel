@@ -19,3 +19,4 @@ dependencies:
   - pyproj
   - scikit-image
   - xdem
+  - geopandas < 0.14

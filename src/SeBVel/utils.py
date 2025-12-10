@@ -206,3 +206,5 @@ def generate_memmap(array: np.ndarray,
 
     return load(array_filename_memmap, mmap_mode='w+')
 
+
+

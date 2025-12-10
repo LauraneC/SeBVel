@@ -81,10 +81,33 @@ def merge_geotiff(files:str, output_path:str):
 def splitted_process(file_dem: str | None = None,
                      file_ortho: str | None = None, file_rgi: str | None = None, rough_dem: str | None = None,
                      year: int = 2021, hour: str = "10:30",time_span:int=10, nb_split: int = 5, global_settings: dict = {},
-                     dist_search=1.0, ellps: str = "WGS84", domain: dict | None = None,
+                     dist_search=1.0, ellps: str = "WGS84",
                      filter_small_shadows: bool = False, contours: int = 160, nb_cpus: int = 8,
                      path_save: str | None = None, save: bool = True, make_plot: bool = True, show: bool = False,
                      verbose: bool = False):
+    """
+    
+    :param file_dem: path of the DEM
+    :param file_ortho: path of the file or the ortho image
+    :param file_rgi: path of the RGI file
+    :param rough_dem: path of the rough DEM
+    :param year: year used to simulate the shadows
+    :param hour: hour used to simulate the shadows
+    :param time_span: time frequency on which the shadows occur (in days)
+    :param nb_split: number of blocks to split the domain into
+    :param global_settings: global settings
+    :param dist_search: 
+    :param ellps: 
+    :param filter_small_shadows: filter the smalled shadows
+    :param contours: 
+    :param nb_cpus: 
+    :param path_save: 
+    :param save: 
+    :param make_plot: 
+    :param show: 
+    :param verbose: 
+    :return: 
+    """
     # Define the dates when you want to cast shadows (here every 10 days)
     dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]),
                          tzinfo=dt.timezone.utc) + dt.timedelta(ndays) for ndays in

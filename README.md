@@ -5,8 +5,8 @@
 This code enable you to assess seasonal bias in velocity or displacement maps derived from optical images.
 
 First, you can simulate shadow maps according to a given DEM:
-* you can compute shadow mask for a given date and hour, see an example [here](example/1- mapping_shadows/shadow_map_for_one_date.py).
-* you can compute the number of days under shadow extents and borders, see an example [for large DEM](example/1-mapping_shadows/shadow_map_large_DEM.py) and [small DEM](example/1- mapping_shadows/shadow_map_large_DEM.py).
+* you can compute shadow mask for a given date and hour, see an example [here](example/1-mapping_shadows/shadow_map_for_one_date.py).
+* you can compute the number of days under shadow extents and borders, see an example [for large DEM](example/1-mapping_shadows/shadow_map_large_DEM.py) and [small DEM](example/1-mapping_shadows/shadow_map_large_DEM.py).
 
 Second, we can compute the seasonal amplitude of velocity over static areas, which is a proxy of the seasonal bias:
 * see an example for the ITS_LIVE dataset [here](example/2-compute_seasonal_bias/Seasonality_Alps_ITS_LIVE.py)

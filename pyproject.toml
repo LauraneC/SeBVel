@@ -20,6 +20,7 @@ dependencies = [
   "tbb-devel",
   "cython",
   "numpy",
+  "geopandas<0.14",
   "scipy",
   "tqdm",
   "requests",

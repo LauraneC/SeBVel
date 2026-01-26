@@ -10,13 +10,15 @@ dependencies:
   - scipy
   - tqdm
   - geographiclib
+  - geopandas<0.14
   - requests
   - xarray
   - netcdf4
   - matplotlib
   - pillow
   - skyfield
+  - shapely<2.0
   - pyproj
   - scikit-image
-  - xdem
-  - geopandas < 0.14
+  - xdem > 1.0
+

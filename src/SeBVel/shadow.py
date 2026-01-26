@@ -16,7 +16,7 @@ import skimage.draw as skdraw
 import math
 
 from tqdm import tqdm
-from src.SErrVel.utils import load_domain, compute_grad, generate_memmap
+from SeBVel.utils import load_domain, compute_grad, generate_memmap
 from pyproj import Transformer
 from skimage.morphology import disk, binary_closing, binary_opening, binary_erosion, binary_dilation
 from skimage.measure import label, regionprops

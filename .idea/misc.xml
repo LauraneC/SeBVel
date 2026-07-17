@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Black">
-    <option name="sdkName" value="$USER_HOME$/micromamba/envs/swot_env" />
+    <option name="sdkName" value="myenv" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="$USER_HOME$/micromamba/envs/env_sebvel" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="/opt/homebrew/Cellar/micromamba/2.3.0/envs/SebVel" project-jdk-type="Python SDK" />
+  <component name="TimeTrackingManager">
+    <option name="totallyTimeSpent" value="166000" />
+  </component>
 </project>

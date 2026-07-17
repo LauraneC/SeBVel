@@ -9,10 +9,10 @@ First, you can simulate shadow maps according to a given DEM:
 * you can compute the number of days under shadow extents and borders, see an example [for large DEM](example/1-mapping_shadows/shadow_map_large_DEM.py) and [small DEM](example/1-mapping_shadows/shadow_map_large_DEM.py).
 
 Second, you can assess the seasonal amplitude of velocity over static areas, which is a proxy of the seasonal bias:
-* see an example for the ITS_LIVE dataset [here](example/2-compute_seasonal_bias/Seasonality_Alps_ITS_LIVE.py)
+* see an example for the ITS_LIVE dataset [here](example/10-Laurane_personal_codes/Seasonality_Alps_ITS_LIVE_from_IGE.py)
 
 Third, you can estimate the expected seasonal bias over glaciers, by interpolating the seasonal bias over static areas according to the slope and aspect:
-* see an example [here](example/3-estimation_of_seasonal_bias_over_glaciers/interpolation_to_glacier_areas.ipynb)
+* see an example [here](example/4-estimation_of_seasonal_bias_over_glaciers/interpolation_to_glacier_areas.ipynb)
 
 
 If you use this package, please cite:
@@ -34,6 +34,7 @@ pip install -e .
 git clone https://github.com/ChristianSteger/HORAYZON.git
 cd HORAYZON
 pip install -e .
+pip install ticoi
 ```
 
 ### REFERENCES

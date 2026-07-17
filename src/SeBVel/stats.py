@@ -1,9 +1,6 @@
 import numpy as np
 
 
-
-
-
 # Function to calculate average amplitude per 10x10 degree bin
 def calculate_bin_averages(aspect_angles, slope_angles, amplitudes, criterion='mean'):
     bins_aspect = np.arange(0, 370, 10)

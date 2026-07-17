@@ -8,7 +8,7 @@ import warnings
 import datetime as dt
 import matplotlib.pyplot as plt
 
-from src.SErrVel.shadow import Shadow
+from SeBVel.shadow import Shadow
 
 warnings.filterwarnings('ignore')
 

@@ -151,7 +151,7 @@ def splitted_process(file_dem: str | None = None,
 
     if verbose: print(f"Process of {nb_split} iterations complete")
 
-    merge_geotiff(f'{path_save}shadow_map_border*tif', f'/{path_save}/shadow_map_border_merged.tif')
-    merge_geotiff(f'{path_save}/shadow_map*tif', f'{path_save}/shadow_map_merged.tif')
+    merge_geotiff(f'{path_save}shadow_map_border?.tif', f'/{path_save}/shadow_map_border_merged.tif')
+    merge_geotiff(f'{path_save}/shadow_map?.tif', f'{path_save}/shadow_map_merged.tif')
 
     if verbose: print(f"Geotiff merged")

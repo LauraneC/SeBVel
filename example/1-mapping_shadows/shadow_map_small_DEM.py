@@ -34,7 +34,7 @@ hour = "10:30" # Same hour each day
 start_time = time.time()
 
 # nb_split = 5
-# date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date
+# date = dt.datetime(2024, 10, 2, 10, 30, tzinfo=dt.timezone.utc) # Define the date in UTC
 # for iteration_split in range(nb_split):
 #     print(f"Split iteration {iteration_split}")
 #     domain = split_domain(file_dem, nb_split,

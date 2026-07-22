@@ -18,14 +18,13 @@ warnings.filterwarnings('ignore')
 #
 
 # Paths and file names
-file_dem = "/home/charrierl/Documents/Collaborations/Ariane/shadow/COP30_NWArg_PS_downscaled30_EPSG4326.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
+file_dem = "/Users/charriel/Documents/Seasonality/Alps/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 #file_ortho = repo + "20241002_MdG_ortho_0.5m_001_shift_H-V.tif" # Orthoimage (for illustration only when computing shadow maps)
 file_ortho = None
 file_rgi = None # RGI file (glaciers inventory)
 # file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 file_rough_dem = None
-path_save = "/home/charrierl/Documents/Collaborations/Ariane/shadow/"
-
+path_save = "/Users/charriel/Documents/Seasonality/Alps/shadow_mask_solar_time/"
 
 # Boundary parameters
 domain = None
@@ -35,12 +34,12 @@ filter_small_shadows = False # Remove shadows with less than SMALL_SHADOW_LIMIT 
 global_settings = {"SMALL_SHADOW_LIMIT": 500} # Global settings (only SMALL_SHADOW_LIMIT is used here)
 nb_cpus = 8
 
-# Acquisition date (/!\ might be different from data submission date)
+# Acquisition date in UTC
 year = 2024
-hour = "11:30" # Same hour each day
+hour = "10:30" # Same hour each day
 
 #nb of subsets used to split the process
-nb_split = 1
+nb_split = 5
 
 make_plot=False #make plot
 show=False#display it
@@ -50,6 +49,6 @@ save=True#save plots and geotiff files
 
 start_time = time.time()
 splitted_process(file_dem,
-                 file_ortho,file_rgi,rough_dem=file_rough_dem,year=year,hour=hour,nb_split=nb_split,global_settings=global_settings ,domain=domain,
+                 file_ortho,file_rgi,rough_dem=file_rough_dem,year=year,hour=hour,nb_split=nb_split,global_settings=global_settings,
                  filter_small_shadows=filter_small_shadows,contours = 160,time_span=1,nb_cpus=nb_cpus,path_save=path_save,save=save,make_plot=make_plot,show=show,verbose=False)
 print(f"Overall processing took {round(time.time() - start_time, 2)} s")

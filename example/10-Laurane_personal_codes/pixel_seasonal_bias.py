@@ -17,7 +17,7 @@ BASELINE_THRESHOLD = 500 # maximal temporal baselines
 WEIGHT_MODE = "exp" #exp, inv or None used to weight the temporal baselines
 MIN_POINTS = 5 # minimal number of points needed to derive seasonal statistics in the time-series
 SAVE_FIG = True
-PLOT_ONE_COMP = "vy"
+PLOT_ONE_COMP = "vv"
 
 glacier = "Kask"
 #dataset = "IGE_non_filtered"

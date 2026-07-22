@@ -15,7 +15,7 @@ MIN_POINTS = 5
 SAVE_FIG = True
 PLOT_ONE_COMP = "vy"
 
-glacier = "Kask"
+glacier = "Kask_stable_areas"
 #dataset = "IGE_non_filtered"
 dataset = "ITS_LIVE"
 
@@ -27,6 +27,10 @@ if glacier == "Russel":
 if glacier == "Kask":
     path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
     i,j = -138.7574, 60.7723
+
+if glacier == "Kask_stable_areas":
+    path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
+    i,j = -138.7238,60.8552
 
 if glacier == "stable_areas":
     path_save = "/Users/charriel/Documents/Seasonality/"

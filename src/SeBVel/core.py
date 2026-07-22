@@ -92,17 +92,17 @@ def splitted_process(file_dem: str | None = None,
     :param file_rgi: path of the RGI file
     :param rough_dem: path of the rough DEM
     :param year: year used to simulate the shadows
-    :param hour: hour used to simulate the shadows
+    :param hour: hour used to simulate the shadows in UTC
     :param time_span: time frequency on which the shadows occur (in days)
     :param nb_split: number of blocks to split the domain into
     :param global_settings: global settings
-    :param dist_search: 
-    :param ellps: 
+    :param dist_search: search distance for terrain shading [kilometre]
+    :param ellps: ellipsoid model
     :param filter_small_shadows: filter the smalled shadows
-    :param contours: 
-    :param nb_cpus: 
-    :param path_save: 
-    :param save: 
+    :param contours: If 0, for each day, add every shadowed pixels to the shadow map. If > 0, for each day, add only the pixels around
+    :param nb_cpus: number of cpus to use
+    :param path_save: path of the output file
+    :param save: save the result or not
     :param make_plot: 
     :param show: 
     :param verbose: 

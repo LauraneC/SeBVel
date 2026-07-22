@@ -285,7 +285,7 @@ class Shadow:
 
         if self.verbose: print("Inner domain size in ortho: " + str(self.ortho.shape))
 
-    #endregion
+    #endregionfcon
     #%% ---------------------------------------------------------------------------
     #region                              CAST SHADOW
     # -----------------------------------------------------------------------------

@@ -17,7 +17,7 @@ from SeBVel.ige_acess import cube_name_from_shp_points
 from dask.diagnostics import ProgressBar
 
 
-glacier = "Russel"
+glacier = "Kask"
 dataset = "ITS_LIVE"
 
 #Russel

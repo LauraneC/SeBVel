@@ -13,7 +13,7 @@ import pandas as pd
 from dask.diagnostics import ProgressBar
 
 
-glacier = "Russel"
+glacier = "Kask"
 
 #Russel
 if glacier == "Russel":
@@ -102,6 +102,9 @@ def evaluate_fitted_sine(dates, A, maxday, C):
     else: doy = dates.dt.dayofyear.values
     return seasonal_sine_model(doy, A, maxday, C)
 
+# %%========================================================================= #
+#                                   CUBE LOADING                               #
+# =========================================================================%% #
 list_mask = []
 
 mask = gpd.read_file(area_file)
@@ -118,6 +121,10 @@ for cube_name in tqdm(cube_list) :
         # cube_mean = cube.ds.mean(dim=["x", "y"], skipna=True).compute(scheduler='threads', num_workers=4)
         list_mask.append(cube.ds)
 
+# %%========================================================================= #
+#                           AVERAGE VELOCITY OVER CUBE                        #
+# =========================================================================%% #
+
 t = xr.concat(list_mask,dim="mid_date")
 print('Concat done')
 t = t.chunk({"x": -1, "y": -1, "mid_date": 1000})
@@ -125,17 +132,22 @@ with ProgressBar():
     t_mean_time = t.mean(dim=["x", "y"], skipna=True).compute(scheduler='threads', num_workers=4)
 print('Mean done')
 
-### Compute velocity magnitude and save figures
+### Compute velocity magnitude and save nc
 t_mean_time["vv"] = np.sqrt(t_mean_time["vx"]**2 + t_mean_time["vy"]**2)
 t_mean_time[["vx","vy","vv","date1","date2","mapping","spatial_ref","mid_date"]].to_netcdf(f"{path_save}/tmeantime.nc",engine="h5netcdf")
 
+# %%========================================================================= #
+#                           PLOT STATIC AREAS                                 #
+# =========================================================================%% #
+
+# Plot of static areas
 fig, ax = plt.subplots()
 ax.plot(t_mean_time.mid_date,t_mean_time['vv'],linestyle='',marker='o',color='b',markersize=2,label="static areas")
 ax.legend()
 ax.set_ylabel("vv [m/y]")
 plt.show()
 
-#Superimpose with velocities on moving areas
+#Superimpose with velocities on moving areas, and a given month
 url_ls = find_granule_by_point([i, j])
 cube = CubeDataClass()
 cube.load(url_ls, pick_sensor= ["Sentinel-2"],pick_date = ["2016-01-01","2025-12-31"])
@@ -165,6 +177,10 @@ for date in july_30_dates:
 plt.show()
 fig.savefig(f'{path_save}/moving_areas_in_time_its_vv_superimpose.png',dpi=300)
 
+# %%========================================================================= #
+#                           PLOT SINUSOID ON TOP                              #
+# =========================================================================%% #
+# plot sinusoidal function on top
 variable = "vv"
 baseline_treshold = 180
 df = t_mean_time[["vx","vy","vv","date1","date2","temporal_baseline","mid_date"]].to_dataframe()
@@ -195,29 +211,6 @@ print(A_moving,maxday_moving)
 f,A_moving,maxday_moving = match_sine(d=pix_smallb,impose_frequency=True,variable=variable)
 print(f"Nathan code {A_moving,maxday_moving}")
 
-#
-# def seasonal_sine(dates, A, maxday):
-#     """
-#     dates : pandas DatetimeIndex or array-like of timestamps
-#     A     : amplitude
-#     maxday: day of year (1–366) where maximum occurs
-#     """
-#     if isinstance(dates, pd.Series): doy = dates.dt.dayofyear
-#     else:doy = dates.dayofyear
-#     omega = 2 * np.pi / 365.25
-#     return A * np.cos(omega * (doy - maxday))
-#
-# # Compute sine fit on the same time axis
-# vx_sine_static = seasonal_sine(
-#     t_mean_time.mid_date.to_pandas(),
-#     A=A_static,
-#     maxday=maxday_static
-# )
-# vx_sine_moving = seasonal_sine(
-#     pix.index,
-#     A=A_moving,
-#     maxday=maxday_moving
-# )
 
 fig, ax = plt.subplots(2,1)
 ax[0].plot(df_smallb.index,df_smallb[variable],linestyle='',marker='o',color='b',markersize=2,label="static areas")

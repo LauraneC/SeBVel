@@ -1,3 +1,9 @@
+"""
+Script used to compute the number of days under shadow extents and edges over one year.
+For that, we compute in parallel a shadow map for every day of the year.
+"""
+
+
 import time
 import warnings
 from SeBVel.core import splitted_process
@@ -24,7 +30,7 @@ file_ortho = None
 file_rgi = None # RGI file (glaciers inventory)
 # file_rough_dem = "/home/charriel/Documents/Seasonality/metadata/DEM/Copernicus30m/DEM_30m_cropped.tif" # Rough DEM to degrade the precision of the DEM on glacier surfaces (limit crevasses impact)
 file_rough_dem = None
-path_save = "/Users/charriel/Documents/Seasonality/Alps/shadow_mask_solar_time/"
+path_save = "/Users/charriel/Documents/Seasonality/Alps/shadow_mask_10h/"
 
 # Boundary parameters
 domain = None

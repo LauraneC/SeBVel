@@ -266,12 +266,12 @@ for cube_name_el in cube_name_list:
     long_data = (positions[:, 0] - np.min(cube.ds["x"].values)).astype(int) // resolution
     lat_data = (positions[:, 1] - np.min(cube.ds["y"].values)).astype(int) // resolution
 
-    # Format raw displacements to velocities
-    for raw in data_raw:
-        raw["vx"] = raw["vx"] * preData_kwargs["unit"] / raw["temporal_baseline"]
-        raw["vy"] = raw["vy"] * preData_kwargs["unit"] / raw["temporal_baseline"]
-        raw["vv"] = np.sqrt(raw["vx"] ** 2 + raw["vy"] ** 2)
-        raw.index = raw["date1"] + (raw["date2"] - raw["date1"]) // 2
+    # # Format raw displacements to velocities
+    # for raw in data_raw:
+    #     raw["vx"] = raw["vx"] * preData_kwargs["unit"] / raw["temporal_baseline"]
+    #     raw["vy"] = raw["vy"] * preData_kwargs["unit"] / raw["temporal_baseline"]
+    #     raw["vv"] = np.sqrt(raw["vx"] ** 2 + raw["vy"] ** 2)
+    #     raw.index = raw["date1"] + (raw["date2"] - raw["date1"]) // 2
 
     ##  Best matching sinus map (amplitude and phase, and period if not fixed)
     print("[Fourier analysis] Computing periodicity maps...")

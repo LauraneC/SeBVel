@@ -108,7 +108,7 @@ def splitted_process(file_dem: str | None = None,
     :param verbose: 
     :return: 
     """
-    # Define the dates when you want to cast shadows (here every 10 days)
+    # Define the dates when you want to cast shadows (here every time_span days)
     dates = [dt.datetime(year, 1, 1, int(hour.split(':')[0]), int(hour.split(':')[1]),
                          tzinfo=dt.timezone.utc) + dt.timedelta(ndays) for ndays in
              range(time_span , 366 if ((year % 4 == 0) and (year % 100 != 0)) or (year % 400 == 0) else 365,time_span )]
@@ -121,7 +121,7 @@ def splitted_process(file_dem: str | None = None,
                         dist_search=dist_search, ellps=ellps, verbose=verbose,
                         file_rgi=file_rgi,
                         rough_dem=rough_dem)  # initialize the object shadow with global settings, domain (=the subset), ellps ( Earth's surface approximation)
-        # if file_rgi, rough_dem are not None, the DEM is replaced by rough_dem over glaciers
+        # if file_rgi and rough_dem are not None, the DEM is replaced by the rough_dem over glaciers. it's a way to fuse a rough DEM and a more precise one
 
         # Compute the number of days covered by shadows
         shadow_map = shadow.nday_shadow_map(dates, parallelize=nb_cpus, contours=0, preprocess=filter_small_shadows)
@@ -137,7 +137,7 @@ def splitted_process(file_dem: str | None = None,
         if show: plt.show()  # display it
 
         # Compute the numbers of days where each area is included in the border of the shadow
-        shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=contours, preprocess=filter_small_shadows)
+        shadow_map = shadow.nday_shadow_map(dates, parallelize=8, contours=contours, preprocess=filter_small_shadows)# use an erosion/dilatation
         shadow_map = (shadow_map * (365 / (len(dates) + 1))).astype(np.uint16)  # Convert it to a 365 days count
         if save: shadow.write_shadow_map(shadow_map,
                                          output_file=f'{path_save}/shadow_map_border{iteration_split}.tif')
@@ -151,6 +151,7 @@ def splitted_process(file_dem: str | None = None,
 
     if verbose: print(f"Process of {nb_split} iterations complete")
 
+    #Merge the files from all the iterations
     merge_geotiff(f'{path_save}shadow_map_border?.tif', f'/{path_save}/shadow_map_border_merged.tif')
     merge_geotiff(f'{path_save}/shadow_map?.tif', f'{path_save}/shadow_map_merged.tif')
 

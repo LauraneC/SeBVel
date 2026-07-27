@@ -475,490 +475,490 @@ class Shadow:
 
         return shadow_map
 
-    #endregion
-    #%% ---------------------------------------------------------------------------
-    #region                            SHADOW IMPROVEMENT
-    # -----------------------------------------------------------------------------
-
-    def improve_shadow(self, 
-                       pipeline: list,
-                       plot_along_pipeline: bool = False, 
-                       **kwargs) -> None:
-        
-        '''
-        Apply a shadow improvement pipeline to improve the shadow detection.
-
-        Parameters
-        ----------
-          --> pipeline [list]: Shadow improvement pipeline, a list of tuple where each element corresponds to an improvement method to be applied (method to
-                be applied, parameters of the method and title of the eventual plot):
-
-                Example: for a Shadow object called shadow
-                    shadow = Shadow(...)
-                      ...
-                    pipeline = [(shadow.adaptative_flood, {to_flood: 'ortho', extension_limits: (80, 300)}, "Flooded shadows"),
-                                (shadow.refine_contours, {}, "Contours-refined shadows")]
-                    shadow.improve_shadow(pipeline=pipeline, plot_along_pipeline=True)
-
-                For now, accepted methods are (see there definition for more information) : flood, adaptative_flood, regional_flood
-                and refine_contours
-
-          --> plot_along_pipeline [bool] (optional): Plot the shadow at each step of the shadow improvement pipeline, default is False
-          --> **kwargs (optional): Plot parameters if plot_along_pipeline=True (see self.plot_shadow method)
-        '''
-
-        assert self.shadow is not None, "Shadows were not casted, nothing to improve"
-
-        # Apply shadow improvement methods and plot the shadow evolution along the way
-        if plot_along_pipeline:
-            fig, axes = plt.subplots(nrows=len(pipeline)//2 + 1, ncols=2 if len(pipeline) > 0 else 1, 
-                                    figsize=kwargs["figsize"] if "figsize" in kwargs.keys() else (20, min((len(pipeline)//2+1)*6, 12)))
-            if len(axes.shape) == 1:
-                axes = np.expand_dims(axes, axis=0)
-            self.plot_shadow(ax=axes[0,0], title="Original DEM-casted shadows", **kwargs)
-
-        c = 1
-        for improvement in pipeline:
-            # Call improvement function
-            improvement[0](**improvement[1])
-
-            self.shadow[self.ortho > self.SHADOW_MAX_VALUE] = False # Remove pixels with excessive value
-            # Separate weakly-linked shadows before filling gaps
-            self.shadow = binary_closing(binary_opening(self.shadow, footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS)), 
-                                    footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS))
-
-            if plot_along_pipeline:
-                title = improvement[2] if len(improvement) > 2 else ""
-                self.plot_shadow(ax=axes[c//2, c%2], title=title, **kwargs)
-                c += 1
-
-        # Remove small shadows
-        shadows = label(self.shadow, background=0, connectivity=1)
-        for val in np.unique(shadows)[1:]:
-            if np.sum(shadows == val) <= self.SMALL_SHADOW_LIMIT * self.DEM_ORTHO_FACTOR**2:
-                self.shadow[shadows == val] = False
-        del shadows
-
-
-
-    def refine_contours(self,
-                        parallelize: bool = False,
-                        joblib_folder: str = './joblib_memmap',
-                        contours_buffer_size: int = 10, 
-                        shadow_diff_value: int = 10, 
-                        win_size: int = 100):
-        
-        '''
-        Refine the contours of the shadow by comparing pixel values to the median value of shadowed and non-shadowed areas. Thus classifying a pixel value
-        to the area with the nearest median. For each pixel of shadow contours, medians are computed in a {win_size}-wide window, outside a contours buffer
-        ({contours_buffer_size} around the contours). All pixels within this buffer are then classified as shadow (closer to shadow's median) or 
-        non-shadow (closer to non-shadow's median).
-
-        Parameters
-        ----------
-          --> parallelize [bool] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
-            If False, sequential computation is applied. Default is False.
-          --> joblib_folder [str] (optional): Folder where memory map files (for faster parallelization) must be saved.
-          --> contours_buffer_size [int] (optional): Radius of the buffer around the contours where pixels must be classified. The buffered contours will
-            be two times {contours_buffer_size} wide. Default is 10.
-          --> shadow_diff_value [int] (optional): If the difference between the two medians (shadowed and non-shadowed areas) is too small 
-            (< {shadow_diff_value}), the pixel (and its surroundings) is considered to be missing in the detected shadow (hole) and is directly 
-            classified as a shadowed pixel. Default is 10.
-          --> win_size [int] (optional): Size of the window around the pixel in which medians are calculated. Default is 100.
-        '''
-
-        if self.verbose: start_time = time.time()
-
-        contours = self.shadow ^ binary_dilation(self.shadow, footprint=disk(1)) # Shallow contours
-        buffer = (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_buffer_size))) + \
-                 (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_buffer_size))) # Buffer contours in which pixels are classified
-        calculated = np.ones(buffer.shape, dtype=np.bool_) # To be considered a valid shadow, it must always be classified as a shadow
-        shadow_refine = np.copy(self.shadow)
-        win_size = int(win_size / 2)
-
-        # Coordinates of the image
-        ortho_size_x, ortho_size_y = self.ortho.shape
-        coords_x, coords_y = np.meshgrid(np.linspace(0, ortho_size_x, ortho_size_x),
-                                         np.linspace(0, ortho_size_y, ortho_size_y), indexing='ij')
-        coords_x = coords_x.astype(np.uint16)
-        coords_y = coords_y.astype(np.uint16)
-
-        # Contours refining on a single shadow (for parallelization purposes)
-        def refine_contours_single(x, contours_coordinates, ortho, shadow, buffer, calculated, shadow_refine):
-            i, j = contours_coordinates[x, :]
-            # Compute medians of shadowed and non-shadowed areas within win_size wide window, outside of contous buffer
-            select = (slice(max(0, i - win_size), min(i + win_size, ortho_size_x) + 1),
-                      slice(max(0, j - win_size), min(j + win_size, ortho_size_y) + 1))
-            m = np.nanmedian(self.ortho[select][self.shadow[select] & ~buffer[select]]) # Median of shadow area
-            M = np.nanmedian(self.ortho[select][~self.shadow[select] & ~buffer[select]]) # Median of non-shadow area
-
-            if M - m < shadow_diff_value: # The difference is too small, certainly due to a hole in the detected shadows (undetected shadows)
-                shadow_refine[select] = np.where(buffer[select] & calculated[select], True, self.shadow[select])
-            else: # Pixel values within the surroundings of the contours pixel are 
-                condition = np.abs(self.ortho[select] - M) > np.abs(self.ortho[select] - m) # If True, shadow pixel. If False, non-shadow pixel.
-                shadow_refine[select] = np.where(buffer[select] & calculated[select], condition, self.shadow[select])
-                calculated[select][~condition] = False # If False once, not a shadow
-
-        # Contours coordinates and iterator
-        contours_coordinates = np.concatenate([coords_x[contours][:, np.newaxis], coords_y[contours][:, np.newaxis]], axis=1)
-        iterable = range(contours_coordinates.shape[0])
-        if self.verbose: iterable = tqdm(iterable)
-
-        # Apply to every individual shadow
-        if parallelize != False:
-            # Generate memory maps (shared memory) for faster computation
-            self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
-            self.shadow = generate_memmap(self.shadow, "shadow", folder=joblib_folder)
-            buffer = generate_memmap(buffer, "buffer", folder=joblib_folder)
-            calculated = generate_memmap(calculated, "calculated", folder=joblib_folder)
-            shadow_refine = generate_memmap(shadow_refine, "shadow_refine", folder=joblib_folder)
-
-            Parallel(n_jobs=parallelize, verbose=0)(
-                delayed(refine_contours_single)(x, contours_coordinates, self.ortho, self.shadow, buffer, calculated, shadow_refine)
-            for x in iterable) # Parallel computation
-
-            for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
-                os.remove(memmap_file)
-
-        else:
-            for x in iterable: # Sequential computation
-                refine_contours_single(x, contours_coordinates, self.ortho, self.shadow, buffer, calculated, shadow_refine)
-
-        # Update the shadow map with refined contours
-        self.shadow = shadow_refine
-
-        if self.verbose: print(f"Contours refining took {round(time.time() - start_time, 2)} s")
-
-    #endregion
-    #%% ---------------------------------------------------------------------------
-    #region                         INSIDE SHADOW REMOVAL
-    # -----------------------------------------------------------------------------
-
-    def remove_shadow_constant(self,
-                               parallelize: bool = False,
-                               joblib_folder: str = './joblib_memmap',
-                               contours_width: int = 8,
-                               bbox_buffer: int = 10):
-        
-        '''
-        Remove the inside part of the shadows using a constant illumination factor for each shadow. This illumination factor is computed from
-        the median value of shadowed and non-shadowed areas in the box encapsulating the shadow buffered by {bbox_buffer}, and outside the
-        contours of width {contours_width}.
-
-        Parameters
-        ----------
-          --> parallelize [bool | int] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
-            If False, sequential computation is applied. Not necessarily faster here (for small areas). Default is False.
-          --> joblib_folder [str] (optional): Folder where memory map files (for faster parallelization) must be saved.
-          --> contours_width [int] (optional): Width of the contours, diameter of the disk used for the morphological operators. Default is 8.
-          --> bbox_buffer [int] (optional) : Buffer for the box encapsulating the studied shadow, in order to have more pixel to compute the 
-            medians. Default is 10.
-        '''
-
-        if self.verbose: start_time = time.time()
-
-        # Initialization
-        shadows = label(self.shadow, background=0, connectivity=1)
-        self.contours = (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width//2))) + \
-                        (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width//2)))
-        self.illumination = np.zeros(self.shadow.shape, dtype=np.float16)
-        ortho_size_x, ortho_size_y = self.ortho.shape
-
-        if self.verbose: print(f"{len(np.unique(shadows))} shadow areas to remove")
-
-        # Constant shadow removing for a single shadow (for parallelization purposes)
-        def remove_shadow_constant_single(val, bbox, shadows, contours, ortho, illumination):
-            # Compute medians
-            slice_x = slice(bbox[0], bbox[2]+1)
-            slice_y = slice(bbox[1], bbox[3]+1)
-            val_s = np.where((shadows[slice_x, slice_y] == val) & ~contours[slice_x, slice_y], 
-                              ortho[slice_x, slice_y], -1) # Ortho value in shadowed areas
-            m = np.ma.median(np.ma.masked_where(val_s == -1, val_s))
-            del val_s
-            val_ns = np.where((shadows[slice_x, slice_y] != val) & ~contours[slice_x, slice_y], 
-                               ortho[slice_x, slice_y], -1) # Ortho value in non-shadowed areas
-            M = np.ma.median(np.ma.masked_where(val_ns == -1, val_ns))
-            del val_ns, slice_x, slice_y
-
-            illumination[shadows == val] = M/m # Illumination factor of the shadow
-
-        # Compute bbox outside of remove_shadow_constant_single() function because it is not picklable
-        iterable = np.unique(shadows)[1:]
-        props = regionprops(shadows)
-        bboxs = []
-        for val in iterable:
-            bbox = props[val-1].bbox # Box around shadow
-            bboxs.append([max(0, bbox[0]-bbox_buffer), max(0, bbox[1]-bbox_buffer), 
-                          min(bbox[2]+bbox_buffer, ortho_size_x), min(bbox[3]+bbox_buffer, ortho_size_y)])
-
-        # Apply to every individual shadow
-        if self.verbose: iterable = tqdm(iterable)
-        if parallelize != False: # Parallelize : not necessarily faster here...
-            # Generate memory maps (shared memory) for faster computation
-            shadows = generate_memmap(shadows, "shadows", folder=joblib_folder)
-            self.contours = generate_memmap(self.contours, "contours", folder=joblib_folder)
-            self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
-            self.illumination = generate_memmap(self.illumination, "illumination", folder=joblib_folder)
-
-            Parallel(n_jobs=parallelize, verbose=0)(
-                delayed(remove_shadow_constant_single)(val, bboxs[val-1], shadows, self.contours, self.ortho, self.illumination)
-            for val in iterable) # Parallel computation
-
-            for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
-                os.remove(memmap_file)
-
-        else:
-            for val in iterable: # Sequential computation
-                remove_shadow_constant_single(val, bboxs[val-1], shadows, self.contours, self.ortho, self.illumination)
-
-        # Apply the illumination factor to the orthoimage to get a shadow-free image
-        maxi = np.max(self.ortho)
-        self.shadow_free = np.where((self.illumination > 0) & (self.illumination * self.ortho <= maxi) & ~self.contours, 
-                                     self.illumination * self.ortho, self.ortho).astype(np.uint8)
-
-        if self.verbose: print(f"Constant removing inside shadows took {round(time.time() - start_time, 2)} s")
-
-    def remove_shadow_block(self,
-                            parallelize: bool = False,
-                            joblib_folder: str = './joblib_memmap',
-                            bbox_max_size_y: int = 250, 
-                            bbox_buffer: int = 50,
-                            contours_method: str = "constant",
-                            contours_width: int = 8,
-                            min_contour_size: tuple[int] = (5, 50000),
-                            max_contour_size: tuple[int] = (25, 5000000)):
-
-        '''
-        
-        '''
-
-        if self.verbose: start_time = time.time()
-
-        # Label shadows
-        shadows = label(self.shadow, background=0, connectivity=1)
-        props = regionprops(shadows)
-        self.illumination = np.zeros(self.shadow.shape, dtype=np.float16)
-        if self.verbose: print(f"{len(np.unique(shadows))} shadow areas to remove")
-
-        # Shadow direction
-        az = np.radians(self.sun_position["az"].degrees)
-        ortho_size_x, ortho_size_y = self.ortho.shape[0]-1, self.ortho.shape[1]-1
-        bbox_max_size_x = abs(int(bbox_max_size_y / np.tan(az)))
-
-        # Initialize contours according to the chosen method
-        if contours_method == "constant":
-            assert isinstance(contours_width, int), "If using 'constant' contours method, contours_width must be an integer"
-
-            # Contours are considered constant for every shadow (neglict the penumbra area variations in length)
-            self.contours = (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width//2))) + \
-                            (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width//2)))
-            
-        elif contours_method == "nb_pixel":
-            assert ((isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list)) and len(min_contour_size) == 2) \
-               and ((isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list)) and len(max_contour_size) == 2), \
-                   "If using 'nb_pixel' contours method, min_contour_size and max_contour_size must be tuples or lists of size 2 (contours width, nb pixel)"
-
-            self.contours = np.zeros(self.shadow.shape, dtype=np.bool_)
-
-            # Linear function giving the contour width of a shadow according to its amount of pixel : the bigger the shadow, the wider the contour
-            coef_contours = (max_contour_size[0] - min_contour_size[0]) / (max_contour_size[1] - min_contour_size[1])
-            offset_contours = min_contour_size[0] - coef_contours * min_contour_size[1]
-            contour_size_func = lambda nb_pixel: max(min_contour_size[0], min(coef_contours * nb_pixel + offset_contours, max_contour_size[0]))
-
-        elif contours_method == "physics":
-            assert isinstance(contours_width, int), "If using 'physics' contours method, contours_width must be an integer"
-            assert (((isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list)) and len(min_contour_size) == 2) or isinstance(min_contour_size, int)) \
-               and (((isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list)) and len(max_contour_size) == 2) or isinstance(max_contour_size, int)), \
-                   "If using 'physics' contours method, min_contour_size and max_contour_size must be tuples or lists of size 2 (contours width, nb pixel), or integers"
-
-            if isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list):
-                min_contour_size = min_contour_size[0]
-            if isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list):
-                max_contour_size = max_contour_size[0]
-
-            self.contours = np.zeros(self.shadow.shape, dtype=np.bool_)
-
-            # Compute the slopes
-            dem = xdem.DEM.from_array(self.elevation, crs='EPSG:4326', transform=(self.ORTHO_RESOLUTION * self.DEM_ORTHO_FACTOR, 0, np.min(self.lon), 
-                                                                                  0, self.ORTHO_RESOLUTION * self.DEM_ORTHO_FACTOR, np.max(self.lat)), 
-                                      nodata=-1.0)
-            slopes = dem.slope()
-
-            # Interpolate missing slope data
-            coords_x, coords_y = np.meshgrid(np.arange(0, slopes.data.shape[0]), np.arange(0, slopes.data.shape[1]), indexing='ij')
-            points = np.concatenate([coords_x[~slopes.data.mask][:, np.newaxis], 
-                                     coords_y[~slopes.data.mask][:, np.newaxis]], axis=1)
-            values = slopes.data[points[:,0], points[:,1]]
-            points_interp = np.concatenate([coords_x[slopes.data.mask][:, np.newaxis], 
-                                            coords_y[slopes.data.mask][:, np.newaxis]], axis=1)
-            slopes.data[points_interp[:,0], points_interp[:,1]] = griddata(points, values, points_interp, method='nearest')
-            del points_interp
-
-            # Gaussian filter slopes to attenuate the impact of local steep slopes (crevasses and seracs)
-            slopes.data = gaussian(slopes.data, sigma=10)
-
-            # For future interpolation to a point
-            points = (coords_x[:, 0], coords_y[0, :])
-
-            # Shifting factors in the azimutal direction
-            y_fac = np.cos(az - np.pi/2)
-            x_fac = np.sin(az - np.pi/2)
-
-            alt = np.radians(self.sun_position["alt"].degrees) # Sun altitude (in degrees)
-            az = np.pi - az
-
-        else:
-            raise ValueError("contours_method must be one of ['constant', 'nb_pixel', 'physics']")
-
-        # Coordinates of the image
-        coords_x, coords_y = np.meshgrid(np.linspace(0, ortho_size_x, ortho_size_x+1),
-                                         np.linspace(0, ortho_size_y, ortho_size_y+1), indexing='ij')
-        coords_x = coords_x.astype(np.uint16)
-        coords_y = coords_y.astype(np.uint16)
-
-        # Block shadow removing on a single shadow (for parallelization purposes)
-        def remove_shadow_block_single(val, bbox, shadows, contours, shadow, ortho, illumination):
-            shad = (shadows == val)
-
-            if contours_method == "nb_pixel":
-                nb_pix_val = np.sum(shad)
-                contour_width = int(contour_size_func(nb_pix_val)/2)
-                select_x = slice(max(0, bbox[0]-contour_width), min(bbox[2]+contour_width, ortho_size_x))
-                select_y = slice(max(0, bbox[1]-contour_width), min(bbox[3]+contour_width, ortho_size_y))
-                contours[select_x, select_y] += (shad[select_x, select_y] ^ binary_erosion(shad[select_x, select_y], footprint=disk(contour_width))) \
-                                              + (shad[select_x, select_y] ^ binary_dilation(shad[select_x, select_y], footprint=disk(contour_width)))
-            
-            elif contours_method == "physics":   
-                shadow_len = []
-                contour_size_list = []                
-                thin_contours = shad ^ binary_erosion(shad, footprint=disk(1))
-                it = np.nditer(thin_contours[bbox[0]:bbox[2]+1, bbox[1]:bbox[3]+1], flags=['multi_index'])
-                for cont in it:
-                    if cont:
-                        i, j = it.multi_index
-                        i += bbox[0]
-                        j += bbox[1]
-
-                        #  The pixel is at the base of the shadow
-                        if shad[int(max(0, min(i + 0.5 - 4*x_fac, ortho_size_x))), 
-                                int(max(0, min(j + 0.5 - 4*y_fac, ortho_size_y)))]:
-
-                            if i != 0 and i != ortho_size_x and j != 0 and j != ortho_size_y:
-                                contours[skdraw.disk((i, j), contours_width, shape=contours.shape)] = True
-
-                            x_az, y_az = max(0, min(i + 0.5 - x_fac, ortho_size_x)), max(0, min(j + 0.5 - y_fac, ortho_size_y))
-                            while shadow[int(x_az), int(y_az)] and x_az != 0 and x_az != ortho_size_x and y_az != 0 and y_az != ortho_size_y:
-                                x_az = max(0, min(x_az - x_fac, ortho_size_x))
-                                y_az = max(0, min(y_az - y_fac, ortho_size_y))
-
-                            if x_az != 0 and x_az != ortho_size_x and y_az != 0 and y_az != ortho_size_y:
-                                x_az, y_az = x_az + x_fac, y_az + y_fac
-                                length = np.sqrt((x_az - i - 0.5) ** 2 + (y_az - j - 0.5) ** 2) * self.ORTHO_RESOLUTION
-
-                                alpha = np.radians(interpn(points, slopes.data, (x_az / self.DEM_ORTHO_FACTOR, y_az / self.DEM_ORTHO_FACTOR), method='nearest')[0])
-                                contour_size = abs((np.tan(alt + self.SUN_WIDTH/2) - np.tan(alpha)) / 
-                                                   (np.tan(alt - self.SUN_WIDTH/2) - np.tan(alpha)) - 1) * length / self.ORTHO_RESOLUTION
-                                # if contour_size > max_contour_size:
-                                #     print(f"(x, y) : ({int(x_az)}, {int(y_az)}) ; size={contour_size} ; alpha={round(np.degrees(alpha), 1)} ; length={length}")
-                                contour_size_list.append(contour_size)
-                                contours[skdraw.disk((int(x_az), int(y_az)), max(min_contour_size, min(contour_size, max_contour_size)), shape=contours.shape)] = True
-                                shadow_len.append(length)
-
-            bbox = [max(0, bbox[0]-bbox_buffer), max(0, bbox[1]-bbox_buffer), 
-                    min(bbox[2]+bbox_buffer, ortho_size_x), min(bbox[3]+bbox_buffer, ortho_size_y)] # Buffered box around shadow
-            nb_step_x = (bbox[2] - bbox[0]) // bbox_max_size_x
-            nb_step_y = (bbox[3] - bbox[1]) // bbox_max_size_y
-            if nb_step_x + nb_step_y > 0:
-                step = int((bbox[3] - bbox[1]) / (nb_step_y + 1))
-                xmax = bbox[2] - bbox[0]    
-                shift = abs(xmax * np.tan(az))
-                if az >= 0:
-                    y_i = np.array([bbox[1] - shift] + [bbox[1] - nb_step_x*step + n*step for n in range(nb_step_x + nb_step_y)] + [bbox[3] - step, bbox[3]])
-                else:
-                    y_i = np.array([bbox[1], bbox[1] + step] + [bbox[3] - nb_step_y*step + n*step for n in range(nb_step_x + nb_step_y)] + [bbox[3] + shift])
-                y_diff = np.diff(y_i)
-                
-                for start in range(len(y_i)-1):
-                    mask = coords_y - shift / xmax * (coords_x - bbox[0]) - y_i[start]
-                    mask = (mask >= 0) & (mask < y_diff[start]) & (coords_x >= bbox[0]) & \
-                        (coords_x <= bbox[2]) & (coords_y >= bbox[1]) & (coords_y <= bbox[3])
-                    
-                    if np.sum(shad & mask) != 0:
-                        # Approach the histogram of the shadow area by a Gaussian
-                        hist_s, _ = histogram(ortho[shad & mask])
-                        hist_s = hist_s.astype(np.float32)
-                        hist_s /= len(ortho[shad & mask])
-                        gaussian_s = [np.max(hist_s), np.argmax(hist_s) + np.min(ortho[shad & mask]), 
-                                    np.std(ortho[shad & mask & (ortho <= self.SHADOW_MAX_VALUE)])]
-                        
-                        # Median of shadowed and non-shadowed areas within the current block and outside contours
-                        m = np.nanmedian(ortho[shad & ~contours & mask & (ortho <= self.SHADOW_MAX_VALUE)])
-                        M = np.nanmedian(ortho[~shadow & ~contours & mask & (ortho > (gaussian_s[1] + 2*abs(gaussian_s[2])))])
-
-                        illumination[shad & ~contours & mask] = M/m
-
-            else:
-                mask = (coords_x >= bbox[0]) & (coords_x <= bbox[2]+1) & (coords_y >= bbox[1]) & (coords_y <= bbox[3]+1)
-
-                # Approach the histogram of the shadow area by a Gaussian
-                hist_s, _ = histogram(ortho[shad])
-                hist_s = hist_s.astype(np.float32)
-                hist_s /= len(ortho[shad])
-                gaussian_s = [np.max(hist_s), np.argmax(hist_s) + np.min(ortho[shad]), 
-                              np.std(ortho[shad & mask & (ortho <= self.SHADOW_MAX_VALUE)])]
-                
-                # Median of shadowed and non-shadowed areas within the studied shadow and outside contours
-                m = np.nanmedian(ortho[shad & ~contours & mask & (ortho <= self.SHADOW_MAX_VALUE)])
-                M = np.nanmedian(ortho[~shadow & ~contours & mask & (ortho > (gaussian_s[1] + 2*abs(gaussian_s[2])))])
-
-                illumination[shad & ~contours] = M/m
-
-        # Compute bbox outside of remove_shadow_constant_single() function because it is not picklable
-        iterable = np.unique(shadows)[1:]
-        props = regionprops(shadows)
-        bboxs = []
-        for val in iterable:
-            bboxs.append(props[val-1].bbox) # Box around shadow
-
-        # Apply to every individual shadow
-        if self.verbose: iterable = tqdm(iterable)
-        if parallelize != False: # Parallelize : not necessarily faster here...
-            # Generate memory maps (shared memory) for faster computation
-            shadows = generate_memmap(shadows, "shadows", folder=joblib_folder)
-            self.contours = generate_memmap(self.contours, "contours", folder=joblib_folder)
-            self.shadow = generate_memmap(self.shadow, "shadow", folder=joblib_folder)
-            self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
-            self.illumination = generate_memmap(self.illumination, "illumination", folder=joblib_folder)
-
-            Parallel(n_jobs=parallelize, verbose=0)(
-                delayed(remove_shadow_block_single)(val, bboxs[val-1], shadows, self.contours, self.shadow, self.ortho, self.illumination)
-            for val in iterable) # Parallel computation
-
-            for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
-                os.remove(memmap_file)
-
-        else:
-            for val in iterable: # Sequential computation
-                remove_shadow_block_single(val, bboxs[val-1], shadows, self.contours, self.shadow, self.ortho, self.illumination)
-
-        # Smooth the illumination factor within the shadows
-        weigths = gaussian(self.shadow & ~self.contours, sigma=bbox_max_size_y//2)
-        self.illumination = np.where((~self.contours) & self.shadow, gaussian(np.where(self.shadow & ~self.contours, self.illumination, 0), 
-                                                                              sigma=bbox_max_size_y//2) / weigths, self.illumination)
-
-        # Remove inside shadows
-        maxi = np.max(self.ortho)
-        self.shadow_free = np.where((self.illumination > 0) & (self.illumination * self.ortho <= maxi), self.illumination * self.ortho, self.ortho)
-        self.shadow_free[self.contours] = 0
-
-        # Sharpen the shadow areas (increase contrast)
-        #TODO find something better
-        # inter = 3 * self.shadow_free - 2 * gaussian(self.shadow_free, sigma=2)
-        # inter[inter > maxi] = maxi
-        # inter[inter < 0] = 0
-        # self.shadow_free = np.where(self.shadow, inter.round().astype(np.uint8), self.shadow_free)
-
-        if self.verbose: print(f"Block removing inside shadows took {round(time.time() - start_time, 2)} s")
+    # #endregion
+    # #%% ---------------------------------------------------------------------------
+    # #region                            SHADOW IMPROVEMENT
+    # # -----------------------------------------------------------------------------
+    #
+    # def improve_shadow(self,
+    #                    pipeline: list,
+    #                    plot_along_pipeline: bool = False,
+    #                    **kwargs) -> None:
+    #
+    #     '''
+    #     Apply a shadow improvement pipeline to improve the shadow detection.
+    #
+    #     Parameters
+    #     ----------
+    #       --> pipeline [list]: Shadow improvement pipeline, a list of tuple where each element corresponds to an improvement method to be applied (method to
+    #             be applied, parameters of the method and title of the eventual plot):
+    #
+    #             Example: for a Shadow object called shadow
+    #                 shadow = Shadow(...)
+    #                   ...
+    #                 pipeline = [(shadow.adaptative_flood, {to_flood: 'ortho', extension_limits: (80, 300)}, "Flooded shadows"),
+    #                             (shadow.refine_contours, {}, "Contours-refined shadows")]
+    #                 shadow.improve_shadow(pipeline=pipeline, plot_along_pipeline=True)
+    #
+    #             For now, accepted methods are (see there definition for more information) : flood, adaptative_flood, regional_flood
+    #             and refine_contours
+    #
+    #       --> plot_along_pipeline [bool] (optional): Plot the shadow at each step of the shadow improvement pipeline, default is False
+    #       --> **kwargs (optional): Plot parameters if plot_along_pipeline=True (see self.plot_shadow method)
+    #     '''
+    #
+    #     assert self.shadow is not None, "Shadows were not casted, nothing to improve"
+    #
+    #     # Apply shadow improvement methods and plot the shadow evolution along the way
+    #     if plot_along_pipeline:
+    #         fig, axes = plt.subplots(nrows=len(pipeline)//2 + 1, ncols=2 if len(pipeline) > 0 else 1,
+    #                                 figsize=kwargs["figsize"] if "figsize" in kwargs.keys() else (20, min((len(pipeline)//2+1)*6, 12)))
+    #         if len(axes.shape) == 1:
+    #             axes = np.expand_dims(axes, axis=0)
+    #         self.plot_shadow(ax=axes[0,0], title="Original DEM-casted shadows", **kwargs)
+    #
+    #     c = 1
+    #     for improvement in pipeline:
+    #         # Call improvement function
+    #         improvement[0](**improvement[1])
+    #
+    #         self.shadow[self.ortho > self.SHADOW_MAX_VALUE] = False # Remove pixels with excessive value
+    #         # Separate weakly-linked shadows before filling gaps
+    #         self.shadow = binary_closing(binary_opening(self.shadow, footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS)),
+    #                                 footprint=disk(self.WEAKLY_LINKED_SHADOW_DISK_RADIUS))
+    #
+    #         if plot_along_pipeline:
+    #             title = improvement[2] if len(improvement) > 2 else ""
+    #             self.plot_shadow(ax=axes[c//2, c%2], title=title, **kwargs)
+    #             c += 1
+    #
+    #     # Remove small shadows
+    #     shadows = label(self.shadow, background=0, connectivity=1)
+    #     for val in np.unique(shadows)[1:]:
+    #         if np.sum(shadows == val) <= self.SMALL_SHADOW_LIMIT * self.DEM_ORTHO_FACTOR**2:
+    #             self.shadow[shadows == val] = False
+    #     del shadows
+    #
+    #
+    #
+    # def refine_contours(self,
+    #                     parallelize: bool = False,
+    #                     joblib_folder: str = './joblib_memmap',
+    #                     contours_buffer_size: int = 10,
+    #                     shadow_diff_value: int = 10,
+    #                     win_size: int = 100):
+    #
+    #     '''
+    #     Refine the contours of the shadow by comparing pixel values to the median value of shadowed and non-shadowed areas. Thus classifying a pixel value
+    #     to the area with the nearest median. For each pixel of shadow contours, medians are computed in a {win_size}-wide window, outside a contours buffer
+    #     ({contours_buffer_size} around the contours). All pixels within this buffer are then classified as shadow (closer to shadow's median) or
+    #     non-shadow (closer to non-shadow's median).
+    #
+    #     Parameters
+    #     ----------
+    #       --> parallelize [bool] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
+    #         If False, sequential computation is applied. Default is False.
+    #       --> joblib_folder [str] (optional): Folder where memory map files (for faster parallelization) must be saved.
+    #       --> contours_buffer_size [int] (optional): Radius of the buffer around the contours where pixels must be classified. The buffered contours will
+    #         be two times {contours_buffer_size} wide. Default is 10.
+    #       --> shadow_diff_value [int] (optional): If the difference between the two medians (shadowed and non-shadowed areas) is too small
+    #         (< {shadow_diff_value}), the pixel (and its surroundings) is considered to be missing in the detected shadow (hole) and is directly
+    #         classified as a shadowed pixel. Default is 10.
+    #       --> win_size [int] (optional): Size of the window around the pixel in which medians are calculated. Default is 100.
+    #     '''
+    #
+    #     if self.verbose: start_time = time.time()
+    #
+    #     contours = self.shadow ^ binary_dilation(self.shadow, footprint=disk(1)) # Shallow contours
+    #     buffer = (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_buffer_size))) + \
+    #              (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_buffer_size))) # Buffer contours in which pixels are classified
+    #     calculated = np.ones(buffer.shape, dtype=np.bool_) # To be considered a valid shadow, it must always be classified as a shadow
+    #     shadow_refine = np.copy(self.shadow)
+    #     win_size = int(win_size / 2)
+    #
+    #     # Coordinates of the image
+    #     ortho_size_x, ortho_size_y = self.ortho.shape
+    #     coords_x, coords_y = np.meshgrid(np.linspace(0, ortho_size_x, ortho_size_x),
+    #                                      np.linspace(0, ortho_size_y, ortho_size_y), indexing='ij')
+    #     coords_x = coords_x.astype(np.uint16)
+    #     coords_y = coords_y.astype(np.uint16)
+    #
+    #     # Contours refining on a single shadow (for parallelization purposes)
+    #     def refine_contours_single(x, contours_coordinates, ortho, shadow, buffer, calculated, shadow_refine):
+    #         i, j = contours_coordinates[x, :]
+    #         # Compute medians of shadowed and non-shadowed areas within win_size wide window, outside of contous buffer
+    #         select = (slice(max(0, i - win_size), min(i + win_size, ortho_size_x) + 1),
+    #                   slice(max(0, j - win_size), min(j + win_size, ortho_size_y) + 1))
+    #         m = np.nanmedian(self.ortho[select][self.shadow[select] & ~buffer[select]]) # Median of shadow area
+    #         M = np.nanmedian(self.ortho[select][~self.shadow[select] & ~buffer[select]]) # Median of non-shadow area
+    #
+    #         if M - m < shadow_diff_value: # The difference is too small, certainly due to a hole in the detected shadows (undetected shadows)
+    #             shadow_refine[select] = np.where(buffer[select] & calculated[select], True, self.shadow[select])
+    #         else: # Pixel values within the surroundings of the contours pixel are
+    #             condition = np.abs(self.ortho[select] - M) > np.abs(self.ortho[select] - m) # If True, shadow pixel. If False, non-shadow pixel.
+    #             shadow_refine[select] = np.where(buffer[select] & calculated[select], condition, self.shadow[select])
+    #             calculated[select][~condition] = False # If False once, not a shadow
+    #
+    #     # Contours coordinates and iterator
+    #     contours_coordinates = np.concatenate([coords_x[contours][:, np.newaxis], coords_y[contours][:, np.newaxis]], axis=1)
+    #     iterable = range(contours_coordinates.shape[0])
+    #     if self.verbose: iterable = tqdm(iterable)
+    #
+    #     # Apply to every individual shadow
+    #     if parallelize != False:
+    #         # Generate memory maps (shared memory) for faster computation
+    #         self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
+    #         self.shadow = generate_memmap(self.shadow, "shadow", folder=joblib_folder)
+    #         buffer = generate_memmap(buffer, "buffer", folder=joblib_folder)
+    #         calculated = generate_memmap(calculated, "calculated", folder=joblib_folder)
+    #         shadow_refine = generate_memmap(shadow_refine, "shadow_refine", folder=joblib_folder)
+    #
+    #         Parallel(n_jobs=parallelize, verbose=0)(
+    #             delayed(refine_contours_single)(x, contours_coordinates, self.ortho, self.shadow, buffer, calculated, shadow_refine)
+    #         for x in iterable) # Parallel computation
+    #
+    #         for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
+    #             os.remove(memmap_file)
+    #
+    #     else:
+    #         for x in iterable: # Sequential computation
+    #             refine_contours_single(x, contours_coordinates, self.ortho, self.shadow, buffer, calculated, shadow_refine)
+    #
+    #     # Update the shadow map with refined contours
+    #     self.shadow = shadow_refine
+    #
+    #     if self.verbose: print(f"Contours refining took {round(time.time() - start_time, 2)} s")
+    #
+    # #endregion
+    # #%% ---------------------------------------------------------------------------
+    # #region                         INSIDE SHADOW REMOVAL
+    # # -----------------------------------------------------------------------------
+    #
+    # def remove_shadow_constant(self,
+    #                            parallelize: bool = False,
+    #                            joblib_folder: str = './joblib_memmap',
+    #                            contours_width: int = 8,
+    #                            bbox_buffer: int = 10):
+    #
+    #     '''
+    #     Remove the inside part of the shadows using a constant illumination factor for each shadow. This illumination factor is computed from
+    #     the median value of shadowed and non-shadowed areas in the box encapsulating the shadow buffered by {bbox_buffer}, and outside the
+    #     contours of width {contours_width}.
+    #
+    #     Parameters
+    #     ----------
+    #       --> parallelize [bool | int] (optional): Whether the computation should be parallelized or not. Put the number of CPU you want to use, or False.
+    #         If False, sequential computation is applied. Not necessarily faster here (for small areas). Default is False.
+    #       --> joblib_folder [str] (optional): Folder where memory map files (for faster parallelization) must be saved.
+    #       --> contours_width [int] (optional): Width of the contours, diameter of the disk used for the morphological operators. Default is 8.
+    #       --> bbox_buffer [int] (optional) : Buffer for the box encapsulating the studied shadow, in order to have more pixel to compute the
+    #         medians. Default is 10.
+    #     '''
+    #
+    #     if self.verbose: start_time = time.time()
+    #
+    #     # Initialization
+    #     shadows = label(self.shadow, background=0, connectivity=1)
+    #     self.contours = (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width//2))) + \
+    #                     (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width//2)))
+    #     self.illumination = np.zeros(self.shadow.shape, dtype=np.float16)
+    #     ortho_size_x, ortho_size_y = self.ortho.shape
+    #
+    #     if self.verbose: print(f"{len(np.unique(shadows))} shadow areas to remove")
+    #
+    #     # Constant shadow removing for a single shadow (for parallelization purposes)
+    #     def remove_shadow_constant_single(val, bbox, shadows, contours, ortho, illumination):
+    #         # Compute medians
+    #         slice_x = slice(bbox[0], bbox[2]+1)
+    #         slice_y = slice(bbox[1], bbox[3]+1)
+    #         val_s = np.where((shadows[slice_x, slice_y] == val) & ~contours[slice_x, slice_y],
+    #                           ortho[slice_x, slice_y], -1) # Ortho value in shadowed areas
+    #         m = np.ma.median(np.ma.masked_where(val_s == -1, val_s))
+    #         del val_s
+    #         val_ns = np.where((shadows[slice_x, slice_y] != val) & ~contours[slice_x, slice_y],
+    #                            ortho[slice_x, slice_y], -1) # Ortho value in non-shadowed areas
+    #         M = np.ma.median(np.ma.masked_where(val_ns == -1, val_ns))
+    #         del val_ns, slice_x, slice_y
+    #
+    #         illumination[shadows == val] = M/m # Illumination factor of the shadow
+    #
+    #     # Compute bbox outside of remove_shadow_constant_single() function because it is not picklable
+    #     iterable = np.unique(shadows)[1:]
+    #     props = regionprops(shadows)
+    #     bboxs = []
+    #     for val in iterable:
+    #         bbox = props[val-1].bbox # Box around shadow
+    #         bboxs.append([max(0, bbox[0]-bbox_buffer), max(0, bbox[1]-bbox_buffer),
+    #                       min(bbox[2]+bbox_buffer, ortho_size_x), min(bbox[3]+bbox_buffer, ortho_size_y)])
+    #
+    #     # Apply to every individual shadow
+    #     if self.verbose: iterable = tqdm(iterable)
+    #     if parallelize != False: # Parallelize : not necessarily faster here...
+    #         # Generate memory maps (shared memory) for faster computation
+    #         shadows = generate_memmap(shadows, "shadows", folder=joblib_folder)
+    #         self.contours = generate_memmap(self.contours, "contours", folder=joblib_folder)
+    #         self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
+    #         self.illumination = generate_memmap(self.illumination, "illumination", folder=joblib_folder)
+    #
+    #         Parallel(n_jobs=parallelize, verbose=0)(
+    #             delayed(remove_shadow_constant_single)(val, bboxs[val-1], shadows, self.contours, self.ortho, self.illumination)
+    #         for val in iterable) # Parallel computation
+    #
+    #         for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
+    #             os.remove(memmap_file)
+    #
+    #     else:
+    #         for val in iterable: # Sequential computation
+    #             remove_shadow_constant_single(val, bboxs[val-1], shadows, self.contours, self.ortho, self.illumination)
+    #
+    #     # Apply the illumination factor to the orthoimage to get a shadow-free image
+    #     maxi = np.max(self.ortho)
+    #     self.shadow_free = np.where((self.illumination > 0) & (self.illumination * self.ortho <= maxi) & ~self.contours,
+    #                                  self.illumination * self.ortho, self.ortho).astype(np.uint8)
+    #
+    #     if self.verbose: print(f"Constant removing inside shadows took {round(time.time() - start_time, 2)} s")
+    #
+    # def remove_shadow_block(self,
+    #                         parallelize: bool = False,
+    #                         joblib_folder: str = './joblib_memmap',
+    #                         bbox_max_size_y: int = 250,
+    #                         bbox_buffer: int = 50,
+    #                         contours_method: str = "constant",
+    #                         contours_width: int = 8,
+    #                         min_contour_size: tuple[int] = (5, 50000),
+    #                         max_contour_size: tuple[int] = (25, 5000000)):
+    #
+    #     '''
+    #
+    #     '''
+    #
+    #     if self.verbose: start_time = time.time()
+    #
+    #     # Label shadows
+    #     shadows = label(self.shadow, background=0, connectivity=1)
+    #     props = regionprops(shadows)
+    #     self.illumination = np.zeros(self.shadow.shape, dtype=np.float16)
+    #     if self.verbose: print(f"{len(np.unique(shadows))} shadow areas to remove")
+    #
+    #     # Shadow direction
+    #     az = np.radians(self.sun_position["az"].degrees)
+    #     ortho_size_x, ortho_size_y = self.ortho.shape[0]-1, self.ortho.shape[1]-1
+    #     bbox_max_size_x = abs(int(bbox_max_size_y / np.tan(az)))
+    #
+    #     # Initialize contours according to the chosen method
+    #     if contours_method == "constant":
+    #         assert isinstance(contours_width, int), "If using 'constant' contours method, contours_width must be an integer"
+    #
+    #         # Contours are considered constant for every shadow (neglict the penumbra area variations in length)
+    #         self.contours = (self.shadow ^ binary_erosion(self.shadow, footprint=disk(contours_width//2))) + \
+    #                         (self.shadow ^ binary_dilation(self.shadow, footprint=disk(contours_width//2)))
+    #
+    #     elif contours_method == "nb_pixel":
+    #         assert ((isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list)) and len(min_contour_size) == 2) \
+    #            and ((isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list)) and len(max_contour_size) == 2), \
+    #                "If using 'nb_pixel' contours method, min_contour_size and max_contour_size must be tuples or lists of size 2 (contours width, nb pixel)"
+    #
+    #         self.contours = np.zeros(self.shadow.shape, dtype=np.bool_)
+    #
+    #         # Linear function giving the contour width of a shadow according to its amount of pixel : the bigger the shadow, the wider the contour
+    #         coef_contours = (max_contour_size[0] - min_contour_size[0]) / (max_contour_size[1] - min_contour_size[1])
+    #         offset_contours = min_contour_size[0] - coef_contours * min_contour_size[1]
+    #         contour_size_func = lambda nb_pixel: max(min_contour_size[0], min(coef_contours * nb_pixel + offset_contours, max_contour_size[0]))
+    #
+    #     elif contours_method == "physics":
+    #         assert isinstance(contours_width, int), "If using 'physics' contours method, contours_width must be an integer"
+    #         assert (((isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list)) and len(min_contour_size) == 2) or isinstance(min_contour_size, int)) \
+    #            and (((isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list)) and len(max_contour_size) == 2) or isinstance(max_contour_size, int)), \
+    #                "If using 'physics' contours method, min_contour_size and max_contour_size must be tuples or lists of size 2 (contours width, nb pixel), or integers"
+    #
+    #         if isinstance(min_contour_size, tuple) or isinstance(min_contour_size, list):
+    #             min_contour_size = min_contour_size[0]
+    #         if isinstance(max_contour_size, tuple) or isinstance(max_contour_size, list):
+    #             max_contour_size = max_contour_size[0]
+    #
+    #         self.contours = np.zeros(self.shadow.shape, dtype=np.bool_)
+    #
+    #         # Compute the slopes
+    #         dem = xdem.DEM.from_array(self.elevation, crs='EPSG:4326', transform=(self.ORTHO_RESOLUTION * self.DEM_ORTHO_FACTOR, 0, np.min(self.lon),
+    #                                                                               0, self.ORTHO_RESOLUTION * self.DEM_ORTHO_FACTOR, np.max(self.lat)),
+    #                                   nodata=-1.0)
+    #         slopes = dem.slope()
+    #
+    #         # Interpolate missing slope data
+    #         coords_x, coords_y = np.meshgrid(np.arange(0, slopes.data.shape[0]), np.arange(0, slopes.data.shape[1]), indexing='ij')
+    #         points = np.concatenate([coords_x[~slopes.data.mask][:, np.newaxis],
+    #                                  coords_y[~slopes.data.mask][:, np.newaxis]], axis=1)
+    #         values = slopes.data[points[:,0], points[:,1]]
+    #         points_interp = np.concatenate([coords_x[slopes.data.mask][:, np.newaxis],
+    #                                         coords_y[slopes.data.mask][:, np.newaxis]], axis=1)
+    #         slopes.data[points_interp[:,0], points_interp[:,1]] = griddata(points, values, points_interp, method='nearest')
+    #         del points_interp
+    #
+    #         # Gaussian filter slopes to attenuate the impact of local steep slopes (crevasses and seracs)
+    #         slopes.data = gaussian(slopes.data, sigma=10)
+    #
+    #         # For future interpolation to a point
+    #         points = (coords_x[:, 0], coords_y[0, :])
+    #
+    #         # Shifting factors in the azimutal direction
+    #         y_fac = np.cos(az - np.pi/2)
+    #         x_fac = np.sin(az - np.pi/2)
+    #
+    #         alt = np.radians(self.sun_position["alt"].degrees) # Sun altitude (in degrees)
+    #         az = np.pi - az
+    #
+    #     else:
+    #         raise ValueError("contours_method must be one of ['constant', 'nb_pixel', 'physics']")
+    #
+    #     # Coordinates of the image
+    #     coords_x, coords_y = np.meshgrid(np.linspace(0, ortho_size_x, ortho_size_x+1),
+    #                                      np.linspace(0, ortho_size_y, ortho_size_y+1), indexing='ij')
+    #     coords_x = coords_x.astype(np.uint16)
+    #     coords_y = coords_y.astype(np.uint16)
+    #
+    #     # Block shadow removing on a single shadow (for parallelization purposes)
+    #     def remove_shadow_block_single(val, bbox, shadows, contours, shadow, ortho, illumination):
+    #         shad = (shadows == val)
+    #
+    #         if contours_method == "nb_pixel":
+    #             nb_pix_val = np.sum(shad)
+    #             contour_width = int(contour_size_func(nb_pix_val)/2)
+    #             select_x = slice(max(0, bbox[0]-contour_width), min(bbox[2]+contour_width, ortho_size_x))
+    #             select_y = slice(max(0, bbox[1]-contour_width), min(bbox[3]+contour_width, ortho_size_y))
+    #             contours[select_x, select_y] += (shad[select_x, select_y] ^ binary_erosion(shad[select_x, select_y], footprint=disk(contour_width))) \
+    #                                           + (shad[select_x, select_y] ^ binary_dilation(shad[select_x, select_y], footprint=disk(contour_width)))
+    #
+    #         elif contours_method == "physics":
+    #             shadow_len = []
+    #             contour_size_list = []
+    #             thin_contours = shad ^ binary_erosion(shad, footprint=disk(1))
+    #             it = np.nditer(thin_contours[bbox[0]:bbox[2]+1, bbox[1]:bbox[3]+1], flags=['multi_index'])
+    #             for cont in it:
+    #                 if cont:
+    #                     i, j = it.multi_index
+    #                     i += bbox[0]
+    #                     j += bbox[1]
+    #
+    #                     #  The pixel is at the base of the shadow
+    #                     if shad[int(max(0, min(i + 0.5 - 4*x_fac, ortho_size_x))),
+    #                             int(max(0, min(j + 0.5 - 4*y_fac, ortho_size_y)))]:
+    #
+    #                         if i != 0 and i != ortho_size_x and j != 0 and j != ortho_size_y:
+    #                             contours[skdraw.disk((i, j), contours_width, shape=contours.shape)] = True
+    #
+    #                         x_az, y_az = max(0, min(i + 0.5 - x_fac, ortho_size_x)), max(0, min(j + 0.5 - y_fac, ortho_size_y))
+    #                         while shadow[int(x_az), int(y_az)] and x_az != 0 and x_az != ortho_size_x and y_az != 0 and y_az != ortho_size_y:
+    #                             x_az = max(0, min(x_az - x_fac, ortho_size_x))
+    #                             y_az = max(0, min(y_az - y_fac, ortho_size_y))
+    #
+    #                         if x_az != 0 and x_az != ortho_size_x and y_az != 0 and y_az != ortho_size_y:
+    #                             x_az, y_az = x_az + x_fac, y_az + y_fac
+    #                             length = np.sqrt((x_az - i - 0.5) ** 2 + (y_az - j - 0.5) ** 2) * self.ORTHO_RESOLUTION
+    #
+    #                             alpha = np.radians(interpn(points, slopes.data, (x_az / self.DEM_ORTHO_FACTOR, y_az / self.DEM_ORTHO_FACTOR), method='nearest')[0])
+    #                             contour_size = abs((np.tan(alt + self.SUN_WIDTH/2) - np.tan(alpha)) /
+    #                                                (np.tan(alt - self.SUN_WIDTH/2) - np.tan(alpha)) - 1) * length / self.ORTHO_RESOLUTION
+    #                             # if contour_size > max_contour_size:
+    #                             #     print(f"(x, y) : ({int(x_az)}, {int(y_az)}) ; size={contour_size} ; alpha={round(np.degrees(alpha), 1)} ; length={length}")
+    #                             contour_size_list.append(contour_size)
+    #                             contours[skdraw.disk((int(x_az), int(y_az)), max(min_contour_size, min(contour_size, max_contour_size)), shape=contours.shape)] = True
+    #                             shadow_len.append(length)
+    #
+    #         bbox = [max(0, bbox[0]-bbox_buffer), max(0, bbox[1]-bbox_buffer),
+    #                 min(bbox[2]+bbox_buffer, ortho_size_x), min(bbox[3]+bbox_buffer, ortho_size_y)] # Buffered box around shadow
+    #         nb_step_x = (bbox[2] - bbox[0]) // bbox_max_size_x
+    #         nb_step_y = (bbox[3] - bbox[1]) // bbox_max_size_y
+    #         if nb_step_x + nb_step_y > 0:
+    #             step = int((bbox[3] - bbox[1]) / (nb_step_y + 1))
+    #             xmax = bbox[2] - bbox[0]
+    #             shift = abs(xmax * np.tan(az))
+    #             if az >= 0:
+    #                 y_i = np.array([bbox[1] - shift] + [bbox[1] - nb_step_x*step + n*step for n in range(nb_step_x + nb_step_y)] + [bbox[3] - step, bbox[3]])
+    #             else:
+    #                 y_i = np.array([bbox[1], bbox[1] + step] + [bbox[3] - nb_step_y*step + n*step for n in range(nb_step_x + nb_step_y)] + [bbox[3] + shift])
+    #             y_diff = np.diff(y_i)
+    #
+    #             for start in range(len(y_i)-1):
+    #                 mask = coords_y - shift / xmax * (coords_x - bbox[0]) - y_i[start]
+    #                 mask = (mask >= 0) & (mask < y_diff[start]) & (coords_x >= bbox[0]) & \
+    #                     (coords_x <= bbox[2]) & (coords_y >= bbox[1]) & (coords_y <= bbox[3])
+    #
+    #                 if np.sum(shad & mask) != 0:
+    #                     # Approach the histogram of the shadow area by a Gaussian
+    #                     hist_s, _ = histogram(ortho[shad & mask])
+    #                     hist_s = hist_s.astype(np.float32)
+    #                     hist_s /= len(ortho[shad & mask])
+    #                     gaussian_s = [np.max(hist_s), np.argmax(hist_s) + np.min(ortho[shad & mask]),
+    #                                 np.std(ortho[shad & mask & (ortho <= self.SHADOW_MAX_VALUE)])]
+    #
+    #                     # Median of shadowed and non-shadowed areas within the current block and outside contours
+    #                     m = np.nanmedian(ortho[shad & ~contours & mask & (ortho <= self.SHADOW_MAX_VALUE)])
+    #                     M = np.nanmedian(ortho[~shadow & ~contours & mask & (ortho > (gaussian_s[1] + 2*abs(gaussian_s[2])))])
+    #
+    #                     illumination[shad & ~contours & mask] = M/m
+    #
+    #         else:
+    #             mask = (coords_x >= bbox[0]) & (coords_x <= bbox[2]+1) & (coords_y >= bbox[1]) & (coords_y <= bbox[3]+1)
+    #
+    #             # Approach the histogram of the shadow area by a Gaussian
+    #             hist_s, _ = histogram(ortho[shad])
+    #             hist_s = hist_s.astype(np.float32)
+    #             hist_s /= len(ortho[shad])
+    #             gaussian_s = [np.max(hist_s), np.argmax(hist_s) + np.min(ortho[shad]),
+    #                           np.std(ortho[shad & mask & (ortho <= self.SHADOW_MAX_VALUE)])]
+    #
+    #             # Median of shadowed and non-shadowed areas within the studied shadow and outside contours
+    #             m = np.nanmedian(ortho[shad & ~contours & mask & (ortho <= self.SHADOW_MAX_VALUE)])
+    #             M = np.nanmedian(ortho[~shadow & ~contours & mask & (ortho > (gaussian_s[1] + 2*abs(gaussian_s[2])))])
+    #
+    #             illumination[shad & ~contours] = M/m
+    #
+    #     # Compute bbox outside of remove_shadow_constant_single() function because it is not picklable
+    #     iterable = np.unique(shadows)[1:]
+    #     props = regionprops(shadows)
+    #     bboxs = []
+    #     for val in iterable:
+    #         bboxs.append(props[val-1].bbox) # Box around shadow
+    #
+    #     # Apply to every individual shadow
+    #     if self.verbose: iterable = tqdm(iterable)
+    #     if parallelize != False: # Parallelize : not necessarily faster here...
+    #         # Generate memory maps (shared memory) for faster computation
+    #         shadows = generate_memmap(shadows, "shadows", folder=joblib_folder)
+    #         self.contours = generate_memmap(self.contours, "contours", folder=joblib_folder)
+    #         self.shadow = generate_memmap(self.shadow, "shadow", folder=joblib_folder)
+    #         self.ortho = generate_memmap(self.ortho, "ortho", folder=joblib_folder)
+    #         self.illumination = generate_memmap(self.illumination, "illumination", folder=joblib_folder)
+    #
+    #         Parallel(n_jobs=parallelize, verbose=0)(
+    #             delayed(remove_shadow_block_single)(val, bboxs[val-1], shadows, self.contours, self.shadow, self.ortho, self.illumination)
+    #         for val in iterable) # Parallel computation
+    #
+    #         for memmap_file in glob.glob(os.path.join(joblib_folder, "*")): # Delete memmap files
+    #             os.remove(memmap_file)
+    #
+    #     else:
+    #         for val in iterable: # Sequential computation
+    #             remove_shadow_block_single(val, bboxs[val-1], shadows, self.contours, self.shadow, self.ortho, self.illumination)
+    #
+    #     # Smooth the illumination factor within the shadows
+    #     weigths = gaussian(self.shadow & ~self.contours, sigma=bbox_max_size_y//2)
+    #     self.illumination = np.where((~self.contours) & self.shadow, gaussian(np.where(self.shadow & ~self.contours, self.illumination, 0),
+    #                                                                           sigma=bbox_max_size_y//2) / weigths, self.illumination)
+    #
+    #     # Remove inside shadows
+    #     maxi = np.max(self.ortho)
+    #     self.shadow_free = np.where((self.illumination > 0) & (self.illumination * self.ortho <= maxi), self.illumination * self.ortho, self.ortho)
+    #     self.shadow_free[self.contours] = 0
+    #
+    #     # Sharpen the shadow areas (increase contrast)
+    #     #TODO find something better
+    #     # inter = 3 * self.shadow_free - 2 * gaussian(self.shadow_free, sigma=2)
+    #     # inter[inter > maxi] = maxi
+    #     # inter[inter < 0] = 0
+    #     # self.shadow_free = np.where(self.shadow, inter.round().astype(np.uint8), self.shadow_free)
+    #
+    #     if self.verbose: print(f"Block removing inside shadows took {round(time.time() - start_time, 2)} s")
 
     #endregion
     #%% ---------------------------------------------------------------------------
@@ -1527,11 +1527,3 @@ class Shadow:
         ) as dst:
             dst.write(shadow_map, 1)  # Write the first band
         print(f"Saved shadow_map as {output_file}")
-
-
-
-    #endregion
-    #%% ---------------------------------------------------------------------------
-    #region                          ADDITIONAL METHODS
-    # -----------------------------------------------------------------------------
-

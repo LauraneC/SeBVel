@@ -13,11 +13,12 @@ BASELINE_THRESHOLD = 500
 WEIGHT_MODE = "exp" #exp, inv or None
 MIN_POINTS = 5
 SAVE_FIG = True
-PLOT_ONE_COMP = "vy"
-
-glacier = "Kask_stable_areas"
+PLOT_ONE_COMP = "vx"
+PLOT_ROLLING = True
+glacier = "Kask"
 #dataset = "IGE_non_filtered"
 dataset = "ITS_LIVE"
+color_vel = "orange" #"orange" or "dodgerblue"
 
 #Russel
 if glacier == "Russel":
@@ -27,13 +28,14 @@ if glacier == "Russel":
 if glacier == "Kask":
     path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
     i,j = -138.7574, 60.7723
+    #i,j = -138.7962,60.7413 #point 2
 
 if glacier == "Kask_stable_areas":
     path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
     i,j = -138.7238,60.8552
 
-if glacier == "stable_areas":
-    path_save = "/Users/charriel/Documents/Seasonality/"
+if glacier == "Russel_stable_areas":
+    path_save = "/Users/charriel/Documents/Seasonality/Russel/"
     i,j = -50.348547,67.339909
 
 elif glacier == "Alps_exampleTC":
@@ -174,8 +176,10 @@ for i, comp in enumerate(components):
         fontsize=9,
         bbox=dict(facecolor="white", alpha=0.7, edgecolor="none")
     )
-
-    ax[i].set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax[i].set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax[i].set_ylabel(f"velocity x-component [m/y]")
+    else: ax[i].set_ylabel(f"velocity y-component [m/y]")
     ax[i].legend()
 
 plt.tight_layout()
@@ -183,7 +187,7 @@ fig.savefig(f"{path_save}/pixel_seasonal_bias_amplitude_{i,j}.png")
 plt.show()
 
 
-fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+fig, ax = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
 
 for i, comp in enumerate(components):
 
@@ -197,9 +201,21 @@ for i, comp in enumerate(components):
         pix[comp],
         linestyle="",
         marker="o",
-        color="orange",
+        color=color_vel,
         markersize=2,
     )
+    if PLOT_ROLLING:
+
+        # raw points
+        ax[i].plot(
+            rolled_pix.index,
+            rolled_pix[f"{comp}_roll"],
+            linestyle="",
+            marker="o",
+            color="k",
+            markersize=2
+        )
+
 
     # # baseline errorbars
     # ax[i].errorbar(
@@ -229,7 +245,7 @@ for i, comp in enumerate(components):
             linewidth=1,
             color="k",
             alpha=0.6,
-            label=f"Seasonal peak ({max_month})" if k == 0 else None
+            label=f"Seasonal peak timing ({max_month})" if k == 0 else None
         )
     #Value of the min and max
     ax[i].axhline(
@@ -249,16 +265,21 @@ for i, comp in enumerate(components):
         alpha=0.9
     )
 
-    ax[i].set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax[i].set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax[i].set_ylabel(f"velocity x-component [m/y]")
+    else: ax[i].set_ylabel(f"velocity y-component [m/y]")
     ax[i].legend()
 
 plt.tight_layout()
 fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}.png")
 plt.show()
 
+
+
 if PLOT_ONE_COMP is not None:
     comp = PLOT_ONE_COMP
-    fig, ax = plt.subplots(figsize=(6, 3), sharex=True)
+    fig, ax = plt.subplots(figsize=(5, 3), sharex=True)
     ax.set_ylim(pix[comp].mean()-2*pix[comp].std(),pix[comp].mean()+2*pix[comp].std())
 
     # raw points
@@ -267,9 +288,19 @@ if PLOT_ONE_COMP is not None:
         pix[comp],
         linestyle="",
         marker="o",
-        color="orange",
+        color=color_vel,
         markersize=2,
     )
+    if PLOT_ROLLING:
+        # raw points
+        ax.plot(
+            rolled_pix.index,
+            rolled_pix[f"{comp}_roll"],
+            linestyle="",
+            marker="o",
+            color="k",
+            markersize=2
+        )
     #Date of the maximum
     st = stats_summary[comp]
 
@@ -288,7 +319,7 @@ if PLOT_ONE_COMP is not None:
             linewidth=1,
             color="k",
             alpha=0.6,
-            label=f"Seasonal peak: {st['date_max']} ({max_month})" if k == 0 else None
+            label=f"Seasonal peak timing: {st['date_max']} ({max_month})" if k == 0 else None
         )
     #Value of the min and max
     ax.axhline(
@@ -308,9 +339,16 @@ if PLOT_ONE_COMP is not None:
         alpha=0.9
     )
 
-    ax.set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax.set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax.set_ylabel(f"velocity x-component [m/y]")
+    else: ax.set_ylabel(f"velocity y-component [m/y]")
     ax.legend()
 
     plt.tight_layout()
     fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}_{PLOT_ONE_COMP}.png")
     plt.show()
+
+
+
+

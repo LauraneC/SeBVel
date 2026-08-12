@@ -18,7 +18,7 @@ os.system("export NUMBA_NUM_THREADS=4")
 glacier = "Kask"
 dataset = "ITS_LIVE"
 WINDOW = 30
-ROLLING_METHOD = "weighted_median"   # or "mean", "median"
+ROLLING_METHOD = "weighted_median"   # or "mean", "median", "weighted_median"
 MIN_POINTS = 5
 BASELINE_THRESHOLD = 500
 MAXSIZEGB = 5
@@ -34,7 +34,6 @@ if glacier == "Russel":
 
 if glacier == "Kask":
     area_file = "/Users/charriel/Documents/Seasonality/Yukon/Stables_areas_Kask.gpkg"
-    mask_file = f'/Users/charriel/Documents/Seasonality/Yukon/Stables_areas_Kask.gpkg'
     path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
     result_fn = "Kask_static_areas"  # Name of the netCDF file to be created (if save is True)
 
@@ -71,13 +70,14 @@ for cube_name in tqdm(cube_list):
     save_name = cube_name.split('/')[-1].split('.')[0]
     if VERBOSE: print(save_name)
 
+    #Loading of the cube
     cube = CubeDataClass()
     cube.load(cube_name,pick_date = ["2016-01-01" ,"2025-12-31"] ,mask=area_file ,pick_temp_bas = [0 ,BASELINE_THRESHOLD],pick_sensor=PICK_SENSOR)
     if VERBOSE:
         print(f"Sensors list {np.unique(cube.sensor_())}")
         print(f"Cube dimensions {cube.nx, cube.ny}")
 
-
+    # Processing
     size_gb = cube.ds.nbytes / (1024 ** 3)# Convert to GB
     if VERBOSE:print(f"{size_gb:.3f} GB")
     if size_gb < MAXSIZEGB:

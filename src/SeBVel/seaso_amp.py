@@ -416,8 +416,6 @@ def process_split(cube:ticoi.cube_data_classxr.CubeDataClass,ix:int, iy:int,x_st
     process(ds=ds, ix=ix, iy=iy,method_rolling=method_rolling,min_points_rolling=min_points_rolling,path_save=path_save,verbose=verbose)
 
 
-
-
 def rolling_circular_pixel(
     df,
     value_cols=("vx","vy","vv"),
@@ -586,10 +584,3 @@ def mask_geotiff(path_tiff,shapefile_mask,var_list = ['amplitudex', 'amplitudey'
         # Save the masked raster
         with rasterio.open(output_raster_path, "w", **out_meta) as dest:
             dest.write(out_image)
-
-        # # Plot the masked raster
-        # masked_raster = out_image[0]  # Assuming the raster has only one band
-        # plt.imshow(masked_raster, cmap='gray')
-        # plt.colorbar()
-        # plt.title('Masked Raster')
-        # plt.show()

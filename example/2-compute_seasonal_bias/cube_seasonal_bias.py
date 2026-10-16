@@ -27,17 +27,18 @@ PICK_SENSOR = ["Sentinel-2"]
 PICK_DATES = ["2016-01-01" ,"2025-12-31"]
 VERBOSE = True
 
-area_file = "/Users/charriel/Documents/Seasonality/Russel/alps_crop.gpkg"
-path_save = "/Users/charriel/Documents/Seasonality/Alps/"
+glacier = "Russel"
 
-if dataset == "ITS_LIVE":
-    if glacier== "Alps": cube_list = ["s3://its-live-data/datacubes/v2-updated-october2024/N40E000/ITS_LIVE_vel_EPSG32632_G0120_X350000_Y5050000.zarr"]
-    else:
-        mask = gpd.read_file(area_file)
-        list_coordinates = [[mask.bounds.minx[0], mask.bounds.miny[0]], [mask.bounds.maxx[0], mask.bounds.miny[0]],
-                            [mask.bounds.minx[0], mask.bounds.maxy[0]], [mask.bounds.maxx[0], mask.bounds.maxy[0]]]
-        cube_list = np.unique([find_granule_by_point([k[0], k[1]]) for k in list_coordinates])
-    path_save += "ITS_LIVE/"
+#Russel
+if glacier == "Russel":
+    area_file = "/Users/charriel/Documents/Scripts/SeBVel/example/data/Russel_sector_for_seasonality.gpkg"
+    path_save = "/Users/charriel/Documents/Seasonality/Russel/"
+    result_fn = "Russel_static_areas"  # Name of the netCDF file to be created (if save is True)
+
+mask = gpd.read_file(area_file)
+list_coordinates = [[mask.bounds.minx[0], mask.bounds.miny[0]], [mask.bounds.maxx[0], mask.bounds.miny[0]],
+                    [mask.bounds.minx[0], mask.bounds.maxy[0]], [mask.bounds.maxx[0], mask.bounds.maxy[0]]]
+cube_list = np.unique([find_granule_by_point([k[0], k[1]]) for k in list_coordinates])
 
 print(cube_list)
 

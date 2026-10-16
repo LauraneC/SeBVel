@@ -1,7 +1,3 @@
-""" Script to plot the seasonal signal on top of raw image-pair velocities. The seasonal signal is computed as
-The seasonal amplitude is computed using a weighted rolling median or mean applied on the image-pair velocities stacked according to their respective day of the year. The window size of the rolling can be specified. The weights are defined by an exponential decay based on the temporal baselines: $exp(-\Delta_t /L)$, with $\Delta_t$ the temporal baseline and $L$ an empirical value set to 90  to provide higher weights to shorter temporal baselines (which are closer to the instantaneous velocity)."""
-
-
 from ticoi.cube_data_classxr import CubeDataClass
 from ticoi.utils import find_granule_by_point
 import matplotlib.pyplot as plt
@@ -11,17 +7,18 @@ import pandas as pd
 import numpy as np
 
 
+WINDOW = 30
 ROLLING_METHOD = "median"   # mean or median
-WINDOW = 30 # window of rolling median or mean
-BASELINE_THRESHOLD = 500 # maximal temporal baselines
-WEIGHT_MODE = "exp" #exp, inv or None used to weight the temporal baselines
-MIN_POINTS = 5 # minimal number of points needed to derive seasonal statistics in the time-series
+BASELINE_THRESHOLD = 500
+WEIGHT_MODE = "exp" #exp, inv or None
+MIN_POINTS = 5
 SAVE_FIG = True
-PLOT_ONE_COMP = "vv"
-
-glacier = "Kask"
+PLOT_ONE_COMP = "vx"
+PLOT_ROLLING = True
+glacier = "Kask_stable_areas"
 #dataset = "IGE_non_filtered"
 dataset = "ITS_LIVE"
+color_vel = "dodgerblue" #"orange" or "dodgerblue"
 
 #Russel
 if glacier == "Russel":
@@ -31,9 +28,15 @@ if glacier == "Russel":
 if glacier == "Kask":
     path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
     i,j = -138.7574, 60.7723
+    #i,j = -138.7962,60.7413 #point 2
 
-if glacier == "stable_areas":
-    path_save = "/Users/charriel/Documents/Seasonality/"
+if glacier == "Kask_stable_areas":
+    path_save = "/Users/charriel/Documents/Seasonality/Yukon/"
+    i,j = -138.7238,60.8552
+    #i,j = -138.73379,60.82746
+
+if glacier == "Russel_stable_areas":
+    path_save = "/Users/charriel/Documents/Seasonality/Russel/"
     i,j = -50.348547,67.339909
 
 elif glacier == "Alps_exampleTC":
@@ -88,8 +91,7 @@ rolled_pix = rolling_circular_pixel(
     pix,
     value_cols=("vx","vy","vv"),
     window=WINDOW,
-    min_points= MIN_POINTS,
-    method=ROLLING_METHOD,weights_col="temporal_baseline",weight_mode=WEIGHT_MODE,
+    min_points= MIN_POINTS
 )
 
 # %%========================================================================= #
@@ -105,18 +107,15 @@ for comp in ["vx","vy","vv"]:
     mean = s.mean()
     med = s.median()
     amplitude = vmax - vmin
-    amplitude2 = (abs(vmax - med) + abs(vmin - med))
     date_max = rolled_pix.loc[s.idxmax(), "doy"]
     if isinstance(date_max,pd.Series): date_max = date_max[0]
     date_min = rolled_pix.loc[s.idxmin(), "doy"]
-    # if len(date_min) > 0: date_min = date_min[0]
 
     stats_summary[comp] = dict(
         max=vmax,
         min=vmin,
         mean=mean,
         amplitude=amplitude,
-        amplitude2=amplitude2,
         date_max=date_max,
         date_min=date_min
     )
@@ -174,8 +173,10 @@ for i, comp in enumerate(components):
         fontsize=9,
         bbox=dict(facecolor="white", alpha=0.7, edgecolor="none")
     )
-
-    ax[i].set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax[i].set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax[i].set_ylabel(f"velocity x-component [m/y]")
+    else: ax[i].set_ylabel(f"velocity y-component [m/y]")
     ax[i].legend()
 
 plt.tight_layout()
@@ -183,7 +184,7 @@ fig.savefig(f"{path_save}/pixel_seasonal_bias_amplitude_{i,j}.png")
 plt.show()
 
 
-fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+fig, ax = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
 
 for i, comp in enumerate(components):
 
@@ -197,9 +198,21 @@ for i, comp in enumerate(components):
         pix[comp],
         linestyle="",
         marker="o",
-        color="orange",
+        color=color_vel,
         markersize=2,
     )
+    if PLOT_ROLLING:
+
+        # raw points
+        ax[i].plot(
+            rolled_pix.index,
+            rolled_pix[f"{comp}_roll"],
+            linestyle="",
+            marker="o",
+            color="k",
+            markersize=2
+        )
+
 
     # # baseline errorbars
     # ax[i].errorbar(
@@ -229,7 +242,7 @@ for i, comp in enumerate(components):
             linewidth=1,
             color="k",
             alpha=0.6,
-            label=f"Seasonal peak ({max_month})" if k == 0 else None
+            label=f"Seasonal peak timing ({max_month})" if k == 0 else None
         )
     #Value of the min and max
     ax[i].axhline(
@@ -249,16 +262,21 @@ for i, comp in enumerate(components):
         alpha=0.9
     )
 
-    ax[i].set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax[i].set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax[i].set_ylabel(f"velocity x-component [m/y]")
+    else: ax[i].set_ylabel(f"velocity y-component [m/y]")
     ax[i].legend()
 
 plt.tight_layout()
 fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}.png")
 plt.show()
 
+
+
 if PLOT_ONE_COMP is not None:
     comp = PLOT_ONE_COMP
-    fig, ax = plt.subplots(figsize=(6, 3), sharex=True)
+    fig, ax = plt.subplots(figsize=(5, 3), sharex=True)
     ax.set_ylim(pix[comp].mean()-2*pix[comp].std(),pix[comp].mean()+2*pix[comp].std())
 
     # raw points
@@ -267,9 +285,19 @@ if PLOT_ONE_COMP is not None:
         pix[comp],
         linestyle="",
         marker="o",
-        color="orange",
+        color=color_vel,
         markersize=2,
     )
+    if PLOT_ROLLING:
+        # raw points
+        ax.plot(
+            rolled_pix.index,
+            rolled_pix[f"{comp}_roll"],
+            linestyle="",
+            marker="o",
+            color="k",
+            markersize=2
+        )
     #Date of the maximum
     st = stats_summary[comp]
 
@@ -288,7 +316,7 @@ if PLOT_ONE_COMP is not None:
             linewidth=1,
             color="k",
             alpha=0.6,
-            label=f"Seasonal peak: {st['date_max']} ({max_month})" if k == 0 else None
+            label=f"Seasonal peak timing: {st['date_max']} ({max_month})" if k == 0 else None
         )
     #Value of the min and max
     ax.axhline(
@@ -308,9 +336,16 @@ if PLOT_ONE_COMP is not None:
         alpha=0.9
     )
 
-    ax.set_ylabel(f"{comp} [m/y]")
+    # ax[i].set_ylabel(f"{comp} [m/y]")
+    if comp == "vv": ax.set_ylabel(f"velocity magnitude [m/y]")
+    elif comp == "vx": ax.set_ylabel(f"velocity x-component [m/y]")
+    else: ax.set_ylabel(f"velocity y-component [m/y]")
     ax.legend()
 
     plt.tight_layout()
     fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}_{PLOT_ONE_COMP}.png")
     plt.show()
+
+
+
+

@@ -1,6 +1,6 @@
 from ticoi.cube_data_classxr import CubeDataClass
 from ticoi.utils import find_granule_by_point
-from SeBVel.seaso_amp import process,process_split
+from SeBVel.seaso_amp import process,process_split, concatenate_geotiff
 import geopandas as gpd
 from tqdm import tqdm
 from joblib import Parallel, delayed
@@ -15,13 +15,12 @@ os.system("export MKL_NUM_THREADS=1")
 os.system("export NUMBA_NUM_THREADS=4")
 
 
-glacier = "Kask"
+glacier = "Russel"
 dataset = "ITS_LIVE"
 WINDOW = 30
-ROLLING_METHOD = "weighted_median"   # or "mean", "median", "weighted_median"
 MIN_POINTS = 5
 BASELINE_THRESHOLD = 500
-MAXSIZEGB = 5
+MAXSIZEGB = 2
 NCORES = 4
 PICK_SENSOR = ["Sentinel-2"]
 VERBOSE = True
@@ -73,6 +72,7 @@ for cube_name in tqdm(cube_list):
     #Loading of the cube
     cube = CubeDataClass()
     cube.load(cube_name,pick_date = ["2016-01-01" ,"2025-12-31"] ,mask=area_file ,pick_temp_bas = [0 ,BASELINE_THRESHOLD],pick_sensor=PICK_SENSOR)
+
     if VERBOSE:
         print(f"Sensors list {np.unique(cube.sensor_())}")
         print(f"Cube dimensions {cube.nx, cube.ny}")
@@ -85,7 +85,7 @@ for cube_name in tqdm(cube_list):
         if VERBOSE:
             print("Process start...")
             start_t = time.time()
-        process(cube.ds,method_rolling=ROLLING_METHOD,min_points_rolling=MIN_POINTS,window=WINDOW,save_name=save_name,path_save=path_save,verbose=False)
+        process(cube.ds,min_points_rolling=MIN_POINTS,window=WINDOW,save_name=save_name,path_save=path_save,verbose=False)
         if VERBOSE:print(f"Process took {time.time() - start_t} seconds...")
 
     else:
@@ -101,7 +101,11 @@ for cube_name in tqdm(cube_list):
             start_t = time.time()
 
         Parallel(n_jobs=NCORES)(
-            delayed(process_split)(cube,ix, iy,x_step,y_step,method_rolling=ROLLING_METHOD,min_points_rolling=MIN_POINTS,nx_split=nx_split,ny_split=ny_split,verbose=VERBOSE)
+            delayed(process_split)(cube,ix, iy,x_step,y_step,min_points_rolling=MIN_POINTS,nx_split=nx_split,ny_split=ny_split,verbose=VERBOSE,path_save=path_save)
             for ix, iy in product(range(nx_split), range(ny_split))
         )
+
         if VERBOSE:print(f"Process took {time.time() - start_t} seconds...")
+
+    concatenate_geotiff(path_tiff=path_save,type_list = ['phase', 'amplitude'],vexist=True)
+

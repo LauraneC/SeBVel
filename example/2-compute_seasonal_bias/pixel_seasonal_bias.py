@@ -1,23 +1,18 @@
 from ticoi.cube_data_classxr import CubeDataClass
 from ticoi.utils import find_granule_by_point
 import matplotlib.pyplot as plt
-from SeBVel.ige_acess import cube_name_from_shp_points
 from SeBVel.seaso_amp import rolling_circular_pixel, doy_to_month
 import pandas as pd
 import numpy as np
 
 
 WINDOW = 30
-ROLLING_METHOD = "median"   # mean or median
 BASELINE_THRESHOLD = 500
-WEIGHT_MODE = "exp" #exp, inv or None
 MIN_POINTS = 5
 SAVE_FIG = True
 PLOT_ONE_COMP = "vx"
 PLOT_ROLLING = True
 glacier = "Kask"
-#dataset = "IGE_non_filtered"
-dataset = "ITS_LIVE"
 color_vel = "orange" #"orange" or "dodgerblue"
 
 #Russel
@@ -38,31 +33,12 @@ if glacier == "Russel_stable_areas":
     path_save = "/Users/charriel/Documents/Seasonality/Russel/"
     i,j = -50.348547,67.339909
 
-elif glacier == "Alps_exampleTC":
-    path_save = "/Users/charriel/Documents/Seasonality/Alps/"
-    i,j = 6.86759, 45.83930
-    mask_shp = "/Users/charriel/Documents/Seasonality/Alps/shadows_projection/shadow_points_example/example_shadow_point_for_paper.gpkg"
-
-elif glacier == "Alps_no_shadow":
-    path_save = "/Users/charriel/Documents/Seasonality/Alps/"
-    i,j = 7.03004, 45.867817
-    mask_shp = "/Users/charriel/Documents/Seasonality/Alps/point_with_no_shadow.gpkg"
-
 
 if glacier == "Russel": label = "terminus of Issunguata Sermia"
 elif glacier == "Kask": label = "tongue of Kaskawulsh"
 
-if dataset == "IGE_non_filtered":
-    prefix = '_all.nc'
-    folder_cube = "/Users/charriel/Documents/Seasonality/Alps/Cubes_Alps/cubes_S2_non_filter/"
 
-catalog_cubeige = "/Users/charriel/Documents/Seasonality/Alps/Cubes_Alps/cube_grid.shp"
-
-if dataset == "IGE_non_filtered":
-    points = cube_name_from_shp_points(mask_shp, catalog_cubeige)
-    cube_name = f"{folder_cube}{str(points['cube'][0][0]).split('_post0050_yr*')[0]}{prefix}"
-if dataset== "ITS_LIVE":
-    cube_name = find_granule_by_point([i, j])
+cube_name = find_granule_by_point([i, j])
 
 # %%========================================================================= #
 #                                   CUBE LOADING                               #
@@ -75,7 +51,6 @@ cube.load(cube_name,pick_date = ["2016-01-01","2025-12-31"],pick_sensor = ["Sent
 # %%========================================================================= #
 #                                   PIXEL LOADING                               #
 # =========================================================================%% #
-
 
 pix = cube.load_pixel(i,j,output_format="df",visual=True)[0]
 pix["vv"] = np.sqrt(pix["vx"]**2 + pix["vy"]**2)
@@ -90,8 +65,7 @@ rolled_pix = rolling_circular_pixel(
     pix,
     value_cols=("vx","vy","vv"),
     window=WINDOW,
-    min_points= MIN_POINTS,
-    method=ROLLING_METHOD,weights_col="temporal_baseline",weight_mode=WEIGHT_MODE,
+    min_points= MIN_POINTS
 )
 
 # %%========================================================================= #
@@ -156,7 +130,7 @@ for i, comp in enumerate(components):
         linestyle="",
         marker="o",
         markersize=2,
-        label=f"{WINDOW}-day {ROLLING_METHOD}",
+        label=f"{WINDOW}-day median",
     )
 
     # --- stats textbox ---
@@ -183,7 +157,7 @@ for i, comp in enumerate(components):
     ax[i].legend()
 
 plt.tight_layout()
-fig.savefig(f"{path_save}/pixel_seasonal_bias_amplitude_{i,j}.png")
+fig.savefig(f"{path_save}/pixel_seasonal_bias_amplitude_{i,j}.png",dpi=300)
 plt.show()
 
 
@@ -215,17 +189,6 @@ for i, comp in enumerate(components):
             color="k",
             markersize=2
         )
-
-
-    # # baseline errorbars
-    # ax[i].errorbar(
-    #     pix.index,
-    #     pix[comp],
-    #     xerr=half_baseline_td,
-    #     linestyle="",
-    #     color="orange",
-    #     alpha=0.4
-    # )
 
     #Date of the maximum
     st = stats_summary[comp]
@@ -272,9 +235,8 @@ for i, comp in enumerate(components):
     ax[i].legend()
 
 plt.tight_layout()
-fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}.png")
+fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}.png",dpi=300)
 plt.show()
-
 
 
 if PLOT_ONE_COMP is not None:
@@ -346,7 +308,7 @@ if PLOT_ONE_COMP is not None:
     ax.legend()
 
     plt.tight_layout()
-    fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}_{PLOT_ONE_COMP}.png")
+    fig.savefig(f"{path_save}/pixel_seasonal_bias_{i,j}_{PLOT_ONE_COMP}.png",dpi=300)
     plt.show()
 
 

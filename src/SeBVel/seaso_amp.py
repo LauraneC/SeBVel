@@ -18,55 +18,6 @@ from shapely.geometry import mapping
 
 MethodRolling = Literal["median", "mean", "weighted_median"]
 
-@njit(parallel=True)
-def rolling_mean_circular(data:np.array, doy:np.array, window:int, min_points:int)->np.array:
-    """
-    Compute a circular rolling mean over a window of data.
-    :param data: data to roll over
-    :param doy: day of the year
-    :param window: window size
-    :param min_points: minimum number of points to consider
-    :return: rolling mean
-    """
-
-    nt, ny, nx = data.shape
-    nd = 366
-    half = window // 2
-
-    out = np.full((nd, ny, nx), np.nan, dtype=np.float32)
-
-    for y in prange(ny):
-        for x in range(nx):
-
-            ts = data[:, y, x]
-
-
-            for d in range(1, nd + 1): #for every doy
-
-                s = 0.0
-                c = 0
-
-                for t in range(nt):
-
-                    dd = doy[t] - d # compute the distance between each doy of a year, and the considered doy of the time series
-
-                    # circular distance (because doy is between 0 and 366)
-                    if dd > 183:
-                        dd -= 366
-                    elif dd < -183:
-                        dd += 366
-
-                    if abs(dd) <= half:
-                        v = ts[t]
-                        if not np.isnan(v):
-                            s += v
-                            c += 1
-
-                if c >= min_points:
-                    out[d-1, y, x] = s / c #compute the average
-
-    return out
-
 @njit
 def weighted_median(values:np.ndarray, weights:np.ndarray)->float:
     """
@@ -166,58 +117,12 @@ def rolling_weighted_median_circular(data:np.array, doy:np.array, window:int, mi
     return out
 
 @njit(parallel=True)
-def rolling_median_circular(data:np.array, doy:np.array, window:int, min_points:int)->np.ndarray:
-    """
-    Compute a circular rolling median over a window of data.
-    :param data: data to roll over
-    :param doy: day of the year
-    :param window: window size
-    :param min_points: minimum number of points to consider
-    :return: rolling median
-    """
-
-    nt, ny, nx = data.shape
-    nd = 366
-    half = window // 2
-
-    out = np.full((nd, ny, nx), np.nan, dtype=np.float32)
-
-    for y in prange(ny):
-        for x in range(nx):
-
-            ts = data[:, y, x]
-
-            for d in range(1, nd + 1):
-
-                buf = []
-
-                for t in range(nt):
-
-                    dd = doy[t] - d
-                    if dd > 183:
-                        dd -= 366
-                    elif dd < -183:
-                        dd += 366
-
-                    if abs(dd) <= half:
-                        v = ts[t]
-                        if not np.isnan(v):
-                            buf.append(v)
-
-                if len(buf) >= min_points:
-                    out[d-1, y, x] = np.median(np.array(buf))
-
-    return out
-
-
-
-@njit(parallel=True)
 def compute_stats(arr:np.array,min_points:int=10)->(float,float,float,float):
     """
     Compute the seasonal amplitude (max - min) and the date of the maximal value of a given time series.
     :param arr: time series data
     :param min_points: minimum number of points needed to compute the statics
-    :return: maximal value, minimal value, date of maximal value, amplitude
+    :return: date of maximal value, amplitude
     """
 
     nd, ny, nx = arr.shape
@@ -243,23 +148,22 @@ def compute_stats(arr:np.array,min_points:int=10)->(float,float,float,float):
             datemax[y, x] = np.argmax(valid)
             vamp[y, x] = vmax[y, x]-vmin[y, x]
 
-    return vmax, vmin,datemax, vamp
+    return datemax, vamp
 
 def seasonality_numpy_numba(vx:np.ndarray, vy:np.ndarray, doy:np,
-                           window:int=30,
-                           method:MethodRolling="median",weights:np.ndarray| None=None,
+                           window:int=30,weights:np.ndarray| None=None,
                            min_points_stats:int=5,min_points_rolling:int=10,verbose:bool=False)-> dict:
     """
-
+    Apply a rolling mean, median, or weighted median to a given time series.
+    Then, compute the amplitude (as the difference between the minimal and maximal value of the velocity), and the peak timing (as the date of the maximal velocity)
     :param vx: velocity component values along x-direction
     :param vy: velocity component values along y-direction
     :param doy: day of the year
-    :param window: window size
-    :param method: rolling method, could be "median", "mean", "weighted_median
-    :param weights: method used to compute the weightes, could be "exp" or "inv
+    :param window: window size of the rolling median
+    :param weights: weights used to compute rolling median
     :param min_points_stats: minimum number of points needed to compute the statics
     :param min_points_rolling: minimum number of points needed to compute the rolling
-    :return:
+    :return: amplitude and date of maximal velocity for velocity component values along x-direction, velocity component values along y-direction and the velocity magnitude
     """
 
     vv = np.sqrt(vx**2 + vy**2)
@@ -268,25 +172,17 @@ def seasonality_numpy_numba(vx:np.ndarray, vy:np.ndarray, doy:np,
     if verbose:
         print("Start compute rolling...")
         start = time.time()
-    if method == "weighted_median":
 
-        vx_roll = rolling_weighted_median_circular(
-            data=vx, weights=weights, doy=doy, window=window, min_points=min_points_rolling
-        )
-        vy_roll = rolling_weighted_median_circular(
-            data=vy, weights=weights, doy=doy, window=window, min_points=min_points_rolling
-        )
-        vv_roll = rolling_weighted_median_circular(
-            data=vv, weights=weights, doy=doy, window=window, min_points=min_points_rolling
-        )
-    elif method == "median":
-        vx_roll = rolling_median_circular(data=vx, doy=doy, window=window, min_points=min_points_rolling)
-        vy_roll = rolling_median_circular(data=vy, doy=doy, window=window, min_points=min_points_rolling)
-        vv_roll = rolling_median_circular(data=vv, doy=doy, window=window, min_points=min_points_rolling)
-    else:
-        vx_roll = rolling_mean_circular(data=vx, doy=doy, window=window, min_points=min_points_rolling)
-        vy_roll = rolling_mean_circular(data=vx, doy=doy, window=window, min_points=min_points_rolling)
-        vv_roll = rolling_mean_circular(data=vv, doy=doy, window=window, min_points=min_points_rolling)
+    vx_roll = rolling_weighted_median_circular(
+        data=vx, weights=weights, doy=doy, window=window, min_points=min_points_rolling
+    )
+    vy_roll = rolling_weighted_median_circular(
+        data=vy, weights=weights, doy=doy, window=window, min_points=min_points_rolling
+    )
+    vv_roll = rolling_weighted_median_circular(
+        data=vv, weights=weights, doy=doy, window=window, min_points=min_points_rolling
+    )
+
     if verbose: print(f"Rolling took {time.time()-start} seconds...")
 
     # --- Stats ---
@@ -318,8 +214,8 @@ def save_geotiff(ds:xr.Dataset,stats:dict,path_save:str,save_name:str):
     crs = ds.rio.crs
 
     for var_name in list_var_to_save:
-        data_amp = stats[var_name][-1]  # take amplitude only for saving  # NumPy array
-        data_datemax = stats[var_name][-2]  # take amplitude only for saving  # NumPy array
+        data_datemax = stats[var_name][0]  # take amplitude only for saving  # NumPy array
+        data_amp = stats[var_name][1]  # take amplitude only for saving  # NumPy array
 
         output_file = f"{path_save}/{save_name}{var_name}.tif"
 
@@ -343,22 +239,21 @@ def save_geotiff(ds:xr.Dataset,stats:dict,path_save:str,save_name:str):
             dst.set_band_description(1, "Amplitude")
             dst.set_band_description(2, "DOY_of_maximum")
 
-def process(ds: xr.Dataset,ix:int=None,iy:int=None,method_rolling:MethodRolling="median",window:int=30,min_points_rolling:int=5,min_points_stats:int=10,L:int=90,save_name:str=None,path_save:str=None,baseline_treshold:int=500,verbose:bool=False):
+def process(ds: xr.Dataset,ix:int=None,iy:int=None,window:int=30,min_points_rolling:int=5,min_points_stats:int=10,L:int=90,save_name:str=None,path_save:str=None,baseline_treshold:int=500,verbose:bool=False):
     """
-    Compute a rolling mean or median (possibly weighted) over a given time series stacked according to the doy.
-    Then estimate some statistics (min,max,amplitude,date of the maximum).
+    Compute a rolling weighted circular median over a given time series stacked according to the DOY.
+    Then, estimate some statistics (date of the maximum and amplitude).
     Save the date of the maximum and the amplitude as geotiff
-    :param ds:
+    :param ds: data array with velocity values
     :param ix: index of split along x
-    :param iy:
-    :param method:
-    :param window:
+    :param iy: index of split along y
+    :param window: window size of the rolling median
     :param min_points_rolling: minimum number of points to consider for the statistics
     :param min_points_stats: minimum number of points to consider for the statistics
-    :param L:
-    :param save_name:
-    :param path_save:
-    :param verbose:
+    :param L: length of the rolling median
+    :param save_name: name of the output file
+    :param path_save: path where to save the data
+    :param verbose: if True display some messages
     :return:
     """
 
@@ -370,20 +265,20 @@ def process(ds: xr.Dataset,ix:int=None,iy:int=None,method_rolling:MethodRolling=
     vy = ds["vy"].values
     dates = ds["mid_date"].values
     doy = pd.to_datetime(dates).dayofyear.values
-    if method_rolling == "weighted_median":
-        baseline = ds["temporal_baseline"].values
-        weights = np.exp(-baseline / L)
-    else: weights = None
+
+    #Compute the weights
+    baseline = ds["temporal_baseline"].values
+    weights = np.exp(-baseline / L)
 
     if verbose:
         print(f"Loading took {time.time() - start} seconds...")
         print("Computing stats...")
 
+    # Compute seasonal amplitudes and peak timings
     start = time.time()
     stats = seasonality_numpy_numba(
         vx=vx, vy=vy, doy=doy,
         window=window,
-        method=method_rolling,
         min_points_stats=min_points_stats,min_points_rolling=min_points_rolling,weights=weights,verbose=verbose)
 
     if verbose:
@@ -391,7 +286,7 @@ def process(ds: xr.Dataset,ix:int=None,iy:int=None,method_rolling:MethodRolling=
         print("Saving tiff...")
         start = time.time()
 
-    print(ix,iy)
+    # Save the results as geotiff
     if path_save is not None:
         if ix!= None: save_name_i = f"{save_name}_amplitude_datamax_bastresh{baseline_treshold}_{ix}_{iy}"
         else: save_name_i = f"{save_name}_amplitude_datamax_bastresh_{baseline_treshold}"
@@ -399,7 +294,21 @@ def process(ds: xr.Dataset,ix:int=None,iy:int=None,method_rolling:MethodRolling=
         if verbose:
            print(f"Saving tiff took {time.time() - start} seconds...")
 
-def process_split(cube:ticoi.cube_data_classxr.CubeDataClass,ix:int, iy:int,x_step:int,y_step:int,method_rolling:MethodRolling="median",min_points_rolling:int=5,nx_split:int=1,ny_split:int=1,path_save=None,verbose:bool=False):
+def process_split(cube:ticoi.cube_data_classxr.CubeDataClass,ix:int, iy:int,x_step:int,y_step:int,min_points_rolling:int=5,nx_split:int=1,ny_split:int=1,path_save=None,verbose:bool=False):
+    """
+    Spliting the computation of seasonal amplitude and peak timing into several tiles
+    :param cube:
+    :param ix: index of split along x
+    :param iy: index of split along y
+    :param x_step:
+    :param y_step:
+    :param min_points_rolling: minimum number of points to consider for the statistics
+    :param nx_split:
+    :param ny_split:
+    :param path_save: path where to save the data
+    :param verbose: if True display some messages
+    :return:
+    """
 
     if verbose:print(f"Processing tile ({ix}, {iy})")
 
@@ -413,98 +322,61 @@ def process_split(cube:ticoi.cube_data_classxr.CubeDataClass,ix:int, iy:int,x_st
         x=slice(x0, x1),
         y=slice(y0, y1)
     )
-    process(ds=ds, ix=ix, iy=iy,method_rolling=method_rolling,min_points_rolling=min_points_rolling,path_save=path_save,verbose=verbose)
-
+    process(ds=ds, ix=ix, iy=iy,min_points_rolling=min_points_rolling,path_save=path_save,verbose=verbose)
 
 def rolling_circular_pixel(
     df,
-    value_cols=("vx","vy","vv"),
+    value_cols=("vx", "vy", "vv"),
     window=30,
-    min_points=5,
-    method="median",
-    weights_col="temporal_baseline",
-    weight_mode=None,   # None | "inverse" | "exp"
-    L=180.0              # decay scale for exponential
+    min_points=5,    # None | "inverse" | "exp"
+    L=180.0
 ):
     """
-    Circular rolling stats at pixel level with optional weighting.
+    Circular rolling statistics for a single pixel.
+
+    For weighted median, uses rolling_weighted_median_circular()
+    internally and maps the 366-day result back to each observation's DOY.
     """
 
-    half_window = window // 2
     df_roll = df.copy()
 
-    # --- Build weights ---
-    if weight_mode is not None:
+    doy = df["doy"].to_numpy(dtype=np.int32)
 
-        baseline = df[weights_col].values.astype(float)
+    # --------------------------------------------------
+    # Build weights
+    # --------------------------------------------------
+    baseline = df["temporal_baseline"].to_numpy(dtype=np.float64)
+    weights_all = np.exp(-baseline / L)
 
-        if weight_mode == "inverse":
-            weights_all = 1.0 / (baseline + 1e-6)
-            weights_all /= np.nanmax(weights_all)
-
-        elif weight_mode == "exp":
-            weights_all = np.exp(-baseline / L)
-
-        else:
-            raise ValueError("weight_mode must be None, 'inverse', or 'exp'")
-
-    else:
-        weights_all = None
-
-    # --- Rolling ---
+    # --------------------------------------------------
+    # Process each variable
+    # --------------------------------------------------
     for col in value_cols:
 
-        rolled_vals = []
+        values = df[col].to_numpy(dtype=np.float64)
 
-        values = df[col].values
-        doy = df["doy"].values
-        nt = len(values)
+        # ==================================================
+        # WEIGHTED MEDIAN
+        # ==================================================
+        # rolling_weighted_median_circular expects:
+        # (nt, ny, nx)
+        # Here ny=nx=1 because this dataframe represents one pixel.
+        data_3d = values[:, None, None]
 
-        for i in range(nt):
+        daily_roll = rolling_weighted_median_circular(
+            data=data_3d,
+            doy=doy,
+            window=window,
+            min_points=min_points,
+            weights=weights_all
+        )
 
-            # Circular distance
-            dd = doy - doy[i]
-            dd[dd > 183] -= 366
-            dd[dd < -183] += 366
+        # daily_roll shape = (366, 1, 1)
+        daily_roll = daily_roll[:, 0, 0]
 
-            in_window = np.abs(dd) <= half_window
-
-            window_vals = values[in_window]
-
-            if weights_all is not None:
-                window_w = weights_all[in_window]
-            else:
-                window_w = None
-
-            # Remove NaNs
-            mask = ~np.isnan(window_vals)
-            window_vals = window_vals[mask]
-
-            if window_w is not None:
-                window_w = window_w[mask]
-
-            if len(window_vals) >= min_points:
-
-                if method == "median":
-
-                    if window_w is None:
-                        rolled_vals.append(np.median(window_vals))
-                    else:
-                        rolled_vals.append(
-                            weighted_median(window_vals, window_w)
-                        )
-
-                else:  # mean
-
-                    if window_w is None:
-                        rolled_vals.append(np.mean(window_vals))
-                    else:
-                        rolled_vals.append(
-                            np.average(window_vals, weights=window_w)
-                        )
-
-            else:
-                rolled_vals.append(np.nan)
+        # Map the daily climatology back to the
+        # acquisition DOYs.
+        rolled_vals = daily_roll[doy - 1]
 
         df_roll[f"{col}_roll"] = rolled_vals
 
